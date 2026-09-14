@@ -96,9 +96,14 @@
             <artifactId>testcontainers-mysql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+          使用 standalone 包而不是 wiremock 核心包：核心包会拖入 Jetty 11 传递依赖，
+          与 Spring Boot 4.1.1 管理的 Jetty 12.1 混在同一条 classpath 上导致版本冲突；
+          standalone 自带完整 Jetty 且零依赖，不受依赖管理覆盖影响。
+        -->
         <dependency>
             <groupId>org.wiremock</groupId>
-            <artifactId>wiremock</artifactId>
+            <artifactId>wiremock-standalone</artifactId>
             <version>${wiremock.version}</version>
             <scope>test</scope>
         </dependency>

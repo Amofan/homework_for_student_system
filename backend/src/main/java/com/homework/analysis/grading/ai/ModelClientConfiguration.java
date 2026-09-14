@@ -15,7 +15,12 @@ class ModelClientConfiguration {
     @Bean
     @ConditionalOnProperty(name = "app.model.enabled", havingValue = "true")
     RestClient modelRestClient(ModelProperties properties) {
+        // 显式固定 HTTP/1.1：JDK HttpClient 默认协商 HTTP/2，而 JdkClientHttpRequestFactory
+        // 在 HTTP/2 下发送 Jackson 流式序列化的请求体（如 Map）时，content-length 与实际
+        // DATA 帧字节数不一致，对端按协议违规回 RST_STREAM，表现为 "EOF reached while reading"。
+        // 模型调用是低频且单次请求体较大的场景，HTTP/2 多路复用无收益，固定 1.1 可消除该失败模式。
         HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(properties.timeoutSeconds()))
             .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);

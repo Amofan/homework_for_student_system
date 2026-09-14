@@ -59,7 +59,9 @@ public final class OpenAiCompatibleModelClient implements AiModelClient {
         } catch (DomainException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new DomainException("MODEL_CALL_FAILED", "大模型调用失败，请稍后重试");
+            // 保留原始异常作为 cause：对外消息保持稳定且不含响应体与密钥，
+            // 但丢掉根因会让连接层与解析层故障无法区分，排障只能靠猜测。
+            throw new DomainException("MODEL_CALL_FAILED", "大模型调用失败，请稍后重试", exception);
         }
     }
 
