@@ -1,0 +1,20 @@
+# 一次性 MySQL 集成验证专用配置，由 -Pmysql-it 触发。
+#
+# 真正的连接信息由 Testcontainers 的 @ServiceConnection 提供。下面的 datasource
+# 占位值刻意指向一个不存在的地址：一旦 @ServiceConnection 失效，测试会立即连接
+# 失败，而不是静默退回 H2 —— 后者会让"已在真实 MySQL 上验证过"这一结论失去意义。
+spring:
+  datasource:
+    url: jdbc:mysql://service-connection-expected:3306/unused
+    username: unused
+    password: unused
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    issuer: homework-analysis-it
+    secret: it-secret-it-secret-it-secret-1234
+    access-minutes: 30
+  model:
+    enabled: false

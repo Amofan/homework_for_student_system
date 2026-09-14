@@ -96,6 +96,30 @@ student_no | question_code | answer
 mvn -f backend/pom.xml test
 ```
 
+后端 MySQL 集成验证（需要本机 Docker 处于运行状态）：
+
+```powershell
+mvn -f backend/pom.xml verify -Pmysql-it
+```
+
+`mvn test` 只运行 Surefire 收集的 `*Test.java`，全程使用内存数据库，不要求本机安装 Docker。
+
+加上 `-Pmysql-it` 后，Failsafe 会额外执行 `*IT.java`：每个测试类各自启动一个一次性
+`mysql:8.4` 容器，Flyway 在其上执行 V1 至最新的全部迁移，测试结束由 Testcontainers
+自动销毁容器。整个过程不复用 `compose.yaml` 的 `homework_mysql_data` 卷，也不会新建
+任何数据卷。
+
+该配置刻意让 `application-mysql-it.yml` 的 datasource 指向一个不存在的地址，真实连接
+信息全部来自 `@ServiceConnection`。这样一旦容器注入失效，测试会立即连接失败，而不是
+静默退回 H2 —— 否则“已在真实 MySQL 上验证过”这一结论就失去了意义。
+
+排查失败时：
+
+- 确认 Docker 正在运行：`docker version`；
+- 只跑其中一个类：`mvn -f backend/pom.xml -Pmysql-it test-compile failsafe:integration-test failsafe:verify -Dit.test=MySqlMigrationIT`；
+- 首次运行需要拉取 `mysql:8.4` 与 `testcontainers/ryuk` 镜像，耗时较长属正常；
+- 报告位于 `backend/target/failsafe-reports/`，其中保留 Flyway 的原始错误信息。
+
 前端：
 
 ```powershell

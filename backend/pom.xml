@@ -96,6 +96,11 @@
             <artifactId>testcontainers-mysql</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!--
           使用 standalone 包而不是 wiremock 核心包：核心包会拖入 Jetty 11 传递依赖，
           与 Spring Boot 4.1.1 管理的 Jetty 12.1 混在同一条 classpath 上导致版本冲突；
@@ -117,4 +122,35 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          一次性 MySQL 集成验证：只在显式启用时才需要本机 Docker。
+          默认的 mvn test 只跑 surefire（*Test.java），不会触碰这里的容器。
+        -->
+        <profile>
+            <id>mysql-it</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/*IT.java</include>
+                            </includes>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
