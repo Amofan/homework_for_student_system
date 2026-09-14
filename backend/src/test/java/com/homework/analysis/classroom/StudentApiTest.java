@@ -1,6 +1,7 @@
 package com.homework.analysis.classroom;
 
 import com.homework.analysis.auth.JwtService;
+import com.homework.analysis.testing.TestDatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,10 +29,7 @@ class StudentApiTest {
 
     @BeforeEach
     void seed() {
-        jdbc.update("delete from student");
-        jdbc.update("delete from school_class");
-        jdbc.update("delete from teacher");
-        jdbc.update("delete from app_user");
+        TestDatabaseCleaner.clean(jdbc);
         jdbc.update("insert into app_user(id, username, password_hash, role, enabled) values (1, 'a', 'x', 'TEACHER', true), (2, 'b', 'x', 'TEACHER', true)");
         jdbc.update("insert into teacher(id, user_id, display_name) values (11, 1, '教师甲'), (22, 2, '教师乙')");
         jdbc.update("insert into school_class(id, teacher_id, class_code, name) values (101, 11, '2026-7-1', '七年级一班'), (202, 22, '2026-8-1', '八年级一班')");

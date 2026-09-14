@@ -1,5 +1,6 @@
 package com.homework.analysis.auth;
 
+import com.homework.analysis.testing.TestDatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,8 +27,7 @@ class AuthApiTest {
 
     @BeforeEach
     void seedTeacher() {
-        jdbc.update("delete from teacher");
-        jdbc.update("delete from app_user");
+        TestDatabaseCleaner.clean(jdbc);
         jdbc.update("insert into app_user(id, username, password_hash, role, enabled) values (1, ?, ?, 'TEACHER', true)",
             "teacher-a", passwordEncoder.encode("TeacherA!234"));
         jdbc.update("insert into teacher(id, user_id, display_name) values (11, 1, '数学教师')");

@@ -99,10 +99,12 @@ mvn -f backend/pom.xml test
 前端：
 
 ```powershell
-npm --prefix frontend run test -- --run
+npm --prefix frontend run test
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
+
+`npm run test` 只运行 `src/**/*.test.ts` 下的 Vitest 单元测试；`npm run test:e2e` 只运行 `e2e/**/*.spec.ts` 下的 Playwright 端到端测试。两者收集范围互不重叠，可以独立运行和独立报告。
 
 浏览器验收需要先启动 `demo` 后端和前端：
 
