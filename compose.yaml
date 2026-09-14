@@ -1,0 +1,24 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: homework-analysis-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: homework_analysis
+      MYSQL_USER: homework_app
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: UTC
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - homework_mysql_data:/var/lib/mysql
+
+volumes:
+  homework_mysql_data:
+    name: homework_mysql_data

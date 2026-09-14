@@ -142,7 +142,7 @@ Spring Boot 业务后端
 建议技术栈：
 
 - 前端：Vue 3、TypeScript、Element Plus、ECharts、MathJax；
-- 后端：Spring Boot、MyBatis-Plus、Spring Security 或 JWT；
+- 后端：Spring Boot、Spring JDBC、Spring Security 与 JWT；
 - 数据库：MySQL；
 - 文件处理：EasyExcel，Word/PDF 导出采用成熟的 Java 文档库；
 - AI 接入：后端统一模型接口适配层；
@@ -294,4 +294,3 @@ Spring Boot 业务后端
 6. 测试与实验：软件测试、教师实验、数据分析和论文材料。
 
 每个阶段均应先完成可运行、可验证的纵向闭环，再进入下一阶段。
-

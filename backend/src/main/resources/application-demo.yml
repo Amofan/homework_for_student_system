@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:homework-demo;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    issuer: homework-analysis-demo
+    secret: demo-secret-only-for-local-demo-2026-change-me
+    access-minutes: 120
+  model:
+    enabled: false
+    base-url: http://localhost
+    api-path: /v1/responses
+    name: disabled
+    api-key: ""
+    timeout-seconds: 10

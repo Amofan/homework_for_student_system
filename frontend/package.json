@@ -1,0 +1,33 @@
+{
+  "name": "homework-analysis-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "typecheck": "vue-tsc -b",
+    "test": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "axios": "1.20.0",
+    "echarts": "6.1.0",
+    "element-plus": "2.14.5",
+    "mathjax": "4.1.3",
+    "pinia": "4.0.3",
+    "vue": "3.5.42",
+    "vue-router": "5.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.0.1",
+    "@vitejs/plugin-vue": "6.0.8",
+    "@vue/test-utils": "2.5.0",
+    "jsdom": "27.0.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.0",
+    "vitest": "5.0.0",
+    "vue-tsc": "3.3.11"
+  }
+}

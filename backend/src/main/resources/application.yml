@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: homework-analysis
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  flyway:
+    enabled: true
+  jackson:
+    time-zone: UTC
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+logging:
+  level:
+    com.homework.analysis: INFO
+
+app:
+  jwt:
+    issuer: homework-analysis
+    secret: ${JWT_SECRET}
+    access-minutes: 30
+  model:
+    enabled: ${MODEL_ENABLED:false}
+    base-url: ${MODEL_BASE_URL:http://localhost}
+    api-path: ${MODEL_API_PATH:/v1/responses}
+    name: ${MODEL_NAME:disabled}
+    api-key: ${MODEL_API_KEY:}
+    timeout-seconds: ${MODEL_TIMEOUT_SECONDS:30}
