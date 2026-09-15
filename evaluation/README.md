@@ -85,11 +85,29 @@ GET /api/evaluation/assignments/{assignmentId}/grading-cases.csv
 - 教师用时、模型用时与令牌数取自各自的原始记录；前端没能计时、模型没有返回用量时留空。
 - **缺少模型原始错因（`ai_error_type`）的样本会被剔除**，并在服务端日志里记一条 WARN 说明剔了几条。
   这类样本生成于本次迁移之前，教师复核已经覆盖了 `error_type`，模型当初判成什么无法还原；
-  评测脚本要求该列非空，与其编造一个标签，不如剔除并留下痕迹。剔了几条要看日志，别只看 CSV。
+  评测脚本要求该列非空，与其编造一个标签，不如剔除并留下痕迹。
+
+### 导出完整性：三个响应头
+
+**CSV 文件本身看不出少了行**，所以导出响应带三个计数头。做正式实验时逐份抄进运行日志：
+
+| 响应头 | 含义 |
+|---|---|
+| `X-Evaluation-Reviewed` | 该作业中教师已复核的样本总数 |
+| `X-Evaluation-Exported` | 实际写进 CSV 的行数 |
+| `X-Evaluation-Skipped-Missing-Ai-Error` | 因缺少模型原始错因被剔除的行数 |
+
+浏览器端能读到它们，靠的是响应上的 `Access-Control-Expose-Headers`——
+**反向代理可能吃掉自定义响应头**，所以前端读到缺失时按 0 处理而不是 `NaN`，
+页面上也会照实提示。三个数都没有时别默认"全导出了"，回去核对服务端日志。
+
+只记实际导出条数，就会把导出量当成样本量；剔除的条数不落在日志里，占位痕迹就丢了。
 
 导出后**仍需人工脱敏检查**：接口不输出身份信息，但把文件带出受控环境前请再确认一遍。
 
-## 运行
+## 运行（冒烟）
+
+拿仓库里的示例数据跑一遍，确认脚本能跑通、口径符合预期：
 
 ```powershell
 python evaluation/evaluate_grading.py `
@@ -105,6 +123,8 @@ python evaluation/evaluate_grading.py `
 - `--output`：结果 JSON 路径，必填，父目录会自动创建；
 - `--tolerance`：容差分数，默认 1。
 
+示例数据是用来说明口径的，条数很少，**不是实验结果**，不要把这些数字写进论文。
+
 跑测试：
 
 ```powershell
@@ -112,6 +132,37 @@ python -m unittest discover -s evaluation/tests -v
 ```
 
 脚本只用 Python 标准库，评测可在离线环境重跑，不需要联网也不需要安装依赖。
+
+## 运行（正式实验）
+
+正式实验的口径已经冻结，见 `docs/experiments/2026-09-15-论文正式实验方案.md`：
+研究问题、样本纳入排除规则、人工评分流程、指标口径四项按方案执行。
+样本与结果归档在**仓库之外**，`evaluation/output/` 只是临时目录。
+
+```powershell
+$experimentRoot = 'E:\homework-analysis-experiment-archive\2026-09-main-study'
+
+python evaluation/evaluate_grading.py `
+  --grading "$experimentRoot\input\grading-cases.csv" `
+  --labels  "$experimentRoot\input\error-labels.csv" `
+  --output  "$experimentRoot\output\metrics.json"
+```
+
+正式实验里 `--labels` 必须显式传。不传时会退化成"样本里实际出现过的标签"，
+换一份样本标签集合就变了，宏平均 F1 的分母随之改变，两批数据就不可比。
+`input\error-labels.csv` 是 `evaluation/data/error_labels.example.csv` 的冻结副本——
+它随后端 `ErrorType` 一起维护，所以实验期间不要换后端版本。
+
+三个文件的 SHA-256 都要算并存进 `checksums\sha256.txt`：
+
+```powershell
+Get-FileHash "$experimentRoot\input\grading-cases.csv" -Algorithm SHA256
+Get-FileHash "$experimentRoot\input\error-labels.csv"  -Algorithm SHA256
+Get-FileHash "$experimentRoot\output\metrics.json"     -Algorithm SHA256
+```
+
+哈希是"论文引用的到底是哪一份输入"的唯一凭据：输入改了，
+指标就不再是同一批数据算出来的。归档布局与日志内容要求见方案的"归档布局"一节。
 
 ## 输出指标
 
@@ -187,6 +238,21 @@ precision/recall/F1 仍然完整保留在 `per_label` 里，需要时可以自�
 
 ## 归档
 
-`evaluation/output/` 已在 `.gitignore` 中，结果不提交。
-论文引用时把最终匿名数据与结果 JSON 一起另行归档到受控位置，
-不要把真实学生信息或以真实样本算出的明细提交进仓库。
+`evaluation/output/` 已在 `.gitignore` 中，只是临时目录，结果不提交。
+正式实验统一归档到**仓库之外**：
+
+```text
+E:\homework-analysis-experiment-archive\2026-09-main-study\
+  protocol\   论文正式实验方案.md
+  input\      grading-cases.csv, error-labels.csv
+  output\     metrics.json
+  logs\       run.txt
+  checksums\  sha256.txt
+```
+
+放仓库外是有意的：仓库可能被克隆、被 fork、被公开，提交进去就收不回来。
+**真实匿名样本、真实结果 JSON、身份映射表一律不进 Git**，
+仓库里只保留脚本、契约文档和构造的示例数据。
+
+归档目录整体拷贝即可交给导师或答辩委员会——用副本而不是符号链接，
+链接换一台机器就断了。日志里不得出现姓名、学号、班级名、学校名、令牌或密钥。
