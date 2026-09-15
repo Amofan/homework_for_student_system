@@ -14,7 +14,7 @@
 ### 评分样本 `grading_cases.example.csv`
 
 ```text
-case_id,total_score,teacher_score,ai_score,teacher_error_type,ai_error_type,teacher_modified,teacher_seconds,ai_seconds,input_tokens,output_tokens
+case_id,total_score,teacher_score,ai_score,teacher_error_type,ai_error_type,teacher_modified,teacher_seconds,ai_seconds,input_tokens,output_tokens,review_decision,model_name,prompt_version
 ```
 
 | 列 | 必填 | 说明 |
@@ -30,9 +30,21 @@ case_id,total_score,teacher_score,ai_score,teacher_error_type,ai_error_type,teac
 | `ai_seconds` | 否 | 模型评分用时（秒） |
 | `input_tokens` | 否 | 输入令牌数，整数 |
 | `output_tokens` | 否 | 输出令牌数，整数 |
+| `review_decision` | 是 | 教师复核决策：`ACCEPT`、`MODIFY` 或 `REJECT` |
+| `model_name` | 否 | 产出该建议的模型名，用于交代模型溯源 |
+| `prompt_version` | 否 | 提示词版本，用于交代实验批次 |
 
 可选列留空表示**缺失**，不是 0——空单元格不会被算进平均值，也不会把令牌总量拉低。
 整列都空时，输出里对应字段为 `null`，而不是 `0`，避免被读成"没有消耗"。
+
+`review_decision` 与 `teacher_modified` 说的是同一件事，读取时会交叉校验：
+`teacher_modified` 必须等于 `review_decision != "ACCEPT"`，不一致直接报错。
+保留旧的布尔列是因为论文前几节的数字按它统计，删掉会让新旧结果失去可比性；
+但只留布尔值会把"驳回"和"普通修改"折叠成一类，而这两者的教学含义并不相同。
+
+`model_name` 与 `prompt_version` 是溯源字段。`prompt_version` 在建表时有默认值 `'v1'`，
+正常不会缺；`model_name` 会在模型任务行不存在时为空。缺多少条会记在
+`provenance.missing_*_count`，缺失时留空，**不会**用某个模型名顶上。
 
 ### 错因标签表 `error_labels.example.csv`
 
@@ -44,8 +56,9 @@ error_type,label_zh
 两者取并集：表里有但样本没出现的类别会以零样本出现在结果里，
 样本里出现但不在表里的标签会进 `unknown_labels` 并在命令行给出警告，不会被静默丢掉。
 
-标签编码与后端 `AiGradingTaskWorker` 的 `ERROR_TYPES` 一致，另有规则评分产生的
-`ANSWER_MISMATCH`。**改动后端标签时必须同步这张表**，否则分类指标会悄悄算错。
+标签编码与后端 `ErrorType` 一致：模型能用的六项，另有规则评分产生的
+`ANSWER_MISMATCH`（客观题答错，模型不用这个标签）。
+**改动后端标签时必须同步这张表**，否则分类指标会悄悄算错。
 
 ### 脱敏要求
 
@@ -117,7 +130,14 @@ python -m unittest discover -s evaluation/tests -v
     "macro_f1": 0.96,
     "confusion_matrix": { "CALCULATION_ERROR": { "OTHER": 1 } }
   },
+  "review_decision_rate": { "accept": 0.625, "modify": 0.25, "reject": 0.125 },
   "teacher_modification_rate": 0.375,
+  "provenance": {
+    "model_names": ["example-model"],
+    "prompt_versions": ["v1"],
+    "missing_model_name_count": 0,
+    "missing_prompt_version_count": 0
+  },
   "timing": {
     "teacher_mean_seconds": 54.0,
     "teacher_median_seconds": 53.5,
@@ -153,6 +173,11 @@ precision/recall/F1 仍然完整保留在 `per_label` 里，需要时可以自�
 评分误差这类有界量只有均值，离群值不会出现那里。
 用时列整列为空时两个口径都报 `0`，与评分指标的空样本口径一致——
 用时缺失本身应当在样本量里交代，而不是读成"0 秒批完"。
+
+**复核决策分三项统计，`teacher_modification_rate` 是旧口径。**
+`review_decision_rate` 的采纳 / 修改 / 驳回三项之和恒为 1；`teacher_modification_rate`
+等于其中的 `modify + reject`，它保留下来只为让论文前几节已引用的数字仍然可比，
+不是第四种决策。两处对不上说明导出环节改坏了其中一列，会由读取时的一致性校验挡住。
 
 **数字保留 6 位小数**，用来消除浮点尾数，保证同一份输入永远得到同一份 JSON。
 指标函数内部不四舍五入——`2/3` 就是 `0.666666...`，只在写文件时格式化。

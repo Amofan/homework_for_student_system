@@ -44,7 +44,8 @@ public class EvaluationExportService {
             cases.add(new GradingCaseRow("answer-" + reviewed.answerId(), reviewed.totalScore(),
                 reviewed.teacherScore(), reviewed.aiScore(), reviewed.teacherErrorType(),
                 reviewed.aiErrorType(), reviewed.teacherModified(), reviewed.teacherSeconds(),
-                reviewed.aiSeconds(), reviewed.inputTokens(), reviewed.outputTokens()));
+                reviewed.aiSeconds(), reviewed.inputTokens(), reviewed.outputTokens(),
+                reviewed.reviewDecision(), reviewed.modelName(), reviewed.promptVersion()));
         }
         if (skipped > 0) {
             log.warn("评测导出跳过了缺少模型原始错因的样本：assignmentId={} 跳过 {} 条", assignmentId, skipped);
@@ -56,7 +57,8 @@ public class EvaluationExportService {
         return jdbc.sql("""
                 select gr.answer_id, gr.suggested_score, gr.ai_error_type, q.total_score,
                        tr.final_score, tr.final_error_type, tr.decision,
-                       tr.teacher_seconds, t.ai_seconds, t.input_tokens, t.output_tokens
+                       tr.teacher_seconds, t.ai_seconds, t.input_tokens, t.output_tokens,
+                       t.model_name, t.prompt_version
                 from grading_result gr
                 join student_answer sa on sa.id = gr.answer_id
                 join submission sub on sub.id = sa.submission_id
@@ -73,7 +75,8 @@ public class EvaluationExportService {
                 // 只有原样接受模型建议才算“没改”；修改与驳回都算教师改动了模型输出
                 rs.getString("ai_error_type"), !"ACCEPT".equals(rs.getString("decision")),
                 decimal(rs.getBigDecimal("teacher_seconds")), decimal(rs.getBigDecimal("ai_seconds")),
-                integer(rs.getObject("input_tokens")), integer(rs.getObject("output_tokens"))))
+                integer(rs.getObject("input_tokens")), integer(rs.getObject("output_tokens")),
+                rs.getString("decision"), rs.getString("model_name"), rs.getString("prompt_version")))
             .list();
     }
 
@@ -88,5 +91,6 @@ public class EvaluationExportService {
     private record ReviewedCase(long answerId, int totalScore, int teacherScore, int aiScore,
                                 String teacherErrorType, String aiErrorType, boolean teacherModified,
                                 Double teacherSeconds, Double aiSeconds,
-                                Integer inputTokens, Integer outputTokens) {}
+                                Integer inputTokens, Integer outputTokens,
+                                String reviewDecision, String modelName, String promptVersion) {}
 }

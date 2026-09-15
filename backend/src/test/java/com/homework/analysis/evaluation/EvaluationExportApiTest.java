@@ -44,11 +44,12 @@ class EvaluationExportApiTest {
             + " primary_knowledge_point_id, accepted_answers) values"
             + " (401, 11, 'Q1', 'FILL_BLANK', '题1', 10, 301, '[\"2\"]'),"
             + " (402, 11, 'Q2', 'FILL_BLANK', '题2', 10, 301, '[\"3\"]'),"
-            + " (403, 12, 'Q3', 'FILL_BLANK', '题3', 10, 302, '[\"4\"]')");
+            + " (403, 12, 'Q3', 'FILL_BLANK', '题3', 10, 302, '[\"4\"]'),"
+            + " (404, 11, 'Q4', 'FILL_BLANK', '题4', 10, 301, '[\"5\"]')");
         jdbc.update("insert into assignment(id, teacher_id, class_id, title, status)"
             + " values (501, 11, 101, '作业', 'IMPORTED'), (502, 12, 102, '别班作业', 'IMPORTED')");
         jdbc.update("insert into assignment_question(assignment_id, question_id, question_order)"
-            + " values (501, 401, 1), (501, 402, 2), (502, 403, 1)");
+            + " values (501, 401, 1), (501, 402, 2), (501, 404, 3), (502, 403, 1)");
         jdbc.update("insert into submission(id, assignment_id, student_id, status)"
             + " values (601, 501, 1001, 'IMPORTED'), (602, 502, 1001, 'IMPORTED'), (603, 501, 1002, 'IMPORTED')");
         jdbc.update("insert into student_answer(id, submission_id, question_id, answer_content)"
@@ -60,16 +61,31 @@ class EvaluationExportApiTest {
         jdbc.update("insert into teacher_review(result_id, teacher_id, decision, final_score,"
             + " final_error_type, feedback, teacher_seconds) values (701, 11, 'MODIFY', 6,"
             + " 'CALCULATION_ERROR', '再看一遍', 42.5)");
-        jdbc.update("insert into ai_grading_task(id, answer_id, status, model_name, input_tokens,"
-            + " output_tokens, ai_seconds) values (801, 611, 'SUCCEEDED', 'qwen', 513, 604, 3.799)");
+        jdbc.update("insert into ai_grading_task(id, answer_id, status, model_name, prompt_version,"
+            + " input_tokens, output_tokens, ai_seconds) values (801, 611, 'SUCCEEDED', 'qwen', 'v1',"
+            + " 513, 604, 3.799)");
         // 612：已复核，但前端没能计时，任务也没返回用量——这些列必须是空而不是 0
         jdbc.update("insert into grading_result(id, answer_id, source, suggested_score, error_type,"
             + " ai_error_type, score_details, status) values (702, 612, 'AI', 10, 'CORRECT',"
             + " 'CORRECT', '[]', 'CONFIRMED')");
         jdbc.update("insert into teacher_review(result_id, teacher_id, decision, final_score,"
             + " final_error_type, feedback) values (702, 11, 'ACCEPT', 10, 'CORRECT', '很好')");
+        // prompt_version 有库默认值 'v1'，所以这一行不写它也会被补成 v1
         jdbc.update("insert into ai_grading_task(id, answer_id, status, model_name)"
             + " values (802, 612, 'SUCCEEDED', 'qwen')");
+        // 616：教师驳回。驳回既不是采纳也不是普通修改，论文里要单独成一项，
+        // 若被折叠进“修改”，教师与模型的分歧程度会被系统性低估
+        jdbc.update("insert into student_answer(id, submission_id, question_id, answer_content)"
+            + " values (616, 603, 404, '5')");
+        jdbc.update("insert into grading_result(id, answer_id, source, suggested_score, error_type,"
+            + " ai_error_type, score_details, status) values (705, 616, 'AI', 8, 'METHOD_ERROR',"
+            + " 'METHOD_ERROR', '[]', 'CONFIRMED')");
+        jdbc.update("insert into teacher_review(result_id, teacher_id, decision, final_score,"
+            + " final_error_type, feedback, reason, teacher_seconds) values (705, 11, 'REJECT', 5,"
+            + " 'CONCEPT_ERROR', '重做', '解法完全不对', 70.25)");
+        jdbc.update("insert into ai_grading_task(id, answer_id, status, model_name, prompt_version,"
+            + " input_tokens, output_tokens, ai_seconds) values (803, 616, 'SUCCEEDED', 'qwen',"
+            + " 'v1', 530, 120, 4.5)");
     }
 
     @Test
@@ -77,11 +93,16 @@ class EvaluationExportApiTest {
         String[] lines = export(501).split("\n");
 
         assertThat(lines[0]).isEqualTo("case_id,total_score,teacher_score,ai_score,teacher_error_type,"
-            + "ai_error_type,teacher_modified,teacher_seconds,ai_seconds,input_tokens,output_tokens");
-        assertThat(lines).hasSize(3);
-        assertThat(lines[1]).isEqualTo("answer-611,10,6,8,CALCULATION_ERROR,METHOD_ERROR,true,42.5,3.799,513,604");
-        // 末尾四个空单元格：耗时与用量缺失时留空，不写 0
-        assertThat(lines[2]).isEqualTo("answer-612,10,10,10,CORRECT,CORRECT,false,,,,");
+            + "ai_error_type,teacher_modified,teacher_seconds,ai_seconds,input_tokens,output_tokens,"
+            + "review_decision,model_name,prompt_version");
+        assertThat(lines).hasSize(4);
+        assertThat(lines[1]).isEqualTo("answer-611,10,6,8,CALCULATION_ERROR,METHOD_ERROR,true,"
+            + "42.5,3.799,513,604,MODIFY,qwen,v1");
+        // 中间四个空单元格：耗时与用量缺失时留空，不写 0
+        assertThat(lines[2]).isEqualTo("answer-612,10,10,10,CORRECT,CORRECT,false,,,,,ACCEPT,qwen,v1");
+        // 驳回原样保留，不被折叠成 MODIFY
+        assertThat(lines[3]).isEqualTo("answer-616,10,5,8,CONCEPT_ERROR,METHOD_ERROR,true,"
+            + "70.25,4.5,530,120,REJECT,qwen,v1");
     }
 
     @Test
@@ -105,7 +126,7 @@ class EvaluationExportApiTest {
         jdbc.update("insert into teacher_review(result_id, teacher_id, decision, final_score,"
             + " final_error_type, feedback) values (703, 11, 'MODIFY', 3, 'ANSWER_MISMATCH', '看过程')");
 
-        assertThat(export(501).split("\n")).hasSize(3);
+        assertThat(export(501).split("\n")).hasSize(4);
     }
 
     @Test
@@ -115,8 +136,21 @@ class EvaluationExportApiTest {
 
         String[] lines = export(501).split("\n");
 
-        assertThat(lines).hasSize(2);
+        assertThat(lines).hasSize(3);
         assertThat(lines[1]).startsWith("answer-611,");
+        assertThat(lines[2]).startsWith("answer-616,");
+    }
+
+    @Test
+    void 模型任务行缺失时溯源字段留空而不是编造模型名() throws Exception {
+        // ai_grading_task 是左连接，任务行不存在时模型名与提示词版本都取不到。
+        // 留空让脚本按“缺失”统计；写占位值会被当成某个真实模型的观测值。
+        jdbc.update("delete from ai_grading_task where answer_id = 611");
+
+        String[] lines = export(501).split("\n");
+
+        assertThat(lines[1]).isEqualTo("answer-611,10,6,8,CALCULATION_ERROR,METHOD_ERROR,true,"
+            + "42.5,,,,MODIFY,,");
     }
 
     @Test

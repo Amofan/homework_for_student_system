@@ -14,7 +14,8 @@ import java.util.List;
  */
 final class GradingCaseCsv {
     static final String HEADER = "case_id,total_score,teacher_score,ai_score,teacher_error_type,"
-        + "ai_error_type,teacher_modified,teacher_seconds,ai_seconds,input_tokens,output_tokens";
+        + "ai_error_type,teacher_modified,teacher_seconds,ai_seconds,input_tokens,output_tokens,"
+        + "review_decision,model_name,prompt_version";
 
     private GradingCaseCsv() {
     }
@@ -32,7 +33,10 @@ final class GradingCaseCsv {
                 .append(optional(row.teacherSeconds())).append(',')
                 .append(optional(row.aiSeconds())).append(',')
                 .append(optional(row.inputTokens())).append(',')
-                .append(optional(row.outputTokens())).append('\n');
+                .append(optional(row.outputTokens())).append(',')
+                .append(label(row.reviewDecision())).append(',')
+                .append(label(row.modelName())).append(',')
+                .append(label(row.promptVersion())).append('\n');
         }
         return csv.toString();
     }

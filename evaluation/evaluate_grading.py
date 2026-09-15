@@ -18,6 +18,9 @@
 - 宏平均 F1 只在教师打过标签的类别上取平均。教师从未使用的标签
   参与平均会把指标无端拉低，这样的数字不能反映真实分类能力；
   但未打标签的类别仍然完整出现在输出里，不会被藏起来。
+- 教师复核分三种决策：采纳、修改、驳回。它们各自成比例，
+  `teacher_modification_rate` 是旧口径（修改 + 驳回），仅为与论文已有数字可比而保留。
+- 每行还带模型名与提示词版本，用于交代实验的模型溯源。
 - 所有比率保留 6 位小数，消除浮点尾数，保证同一份输入永远得到同一份 JSON。
 """
 
@@ -42,9 +45,14 @@ REQUIRED_COLUMNS = (
     "teacher_error_type",
     "ai_error_type",
     "teacher_modified",
+    "review_decision",
 )
 
-OPTIONAL_COLUMNS = ("teacher_seconds", "ai_seconds", "input_tokens", "output_tokens")
+OPTIONAL_COLUMNS = ("teacher_seconds", "ai_seconds", "input_tokens", "output_tokens",
+                    "model_name", "prompt_version")
+
+# 教师的三种复核决策。采纳与驳回是不同的教学判断，不能折叠成一个"改过"布尔值。
+REVIEW_DECISIONS = frozenset({"ACCEPT", "MODIFY", "REJECT"})
 
 TRUE_VALUES = frozenset({"true", "1", "yes", "y", "是"})
 FALSE_VALUES = frozenset({"false", "0", "no", "n", "否", ""})
@@ -52,7 +60,7 @@ FALSE_VALUES = frozenset({"false", "0", "no", "n", "否", ""})
 
 @dataclass(frozen=True)
 class GradingCase:
-    """一条匿名评分样本。可选数值列缺失时为 None，而不是 0。"""
+    """一条匿名评分样本。可选列缺失时为 None，而不是 0。"""
 
     case_id: str
     total_score: float
@@ -65,6 +73,9 @@ class GradingCase:
     ai_seconds: float | None
     input_tokens: int | None
     output_tokens: int | None
+    review_decision: str
+    model_name: str | None = None
+    prompt_version: str | None = None
 
 
 class LabelMetrics(NamedTuple):
@@ -233,9 +244,25 @@ def _to_case(row: dict[str, str], path: Path) -> GradingCase:
             raise ValueError(f"{path} 的 {column} 不能为空")
         return raw
 
+    def optional_text(column: str) -> str | None:
+        """溯源列缺失记 None，与空字符串区分开，好让缺失计数有意义。"""
+        raw = (row.get(column) or "").strip()
+        return raw or None
+
     modified = (row.get("teacher_modified") or "").strip().lower()
     if modified not in TRUE_VALUES and modified not in FALSE_VALUES:
         raise ValueError(f"{path} 的 teacher_modified 只能是 true/false：{modified!r}")
+
+    decision = required("review_decision").upper()
+    if decision not in REVIEW_DECISIONS:
+        raise ValueError(
+            f"{path} 的 review_decision 只能是 ACCEPT/MODIFY/REJECT：{decision!r}")
+    # 两个字段表达同一件事，一旦不一致就说明导出环节改坏了其中一列。
+    # 静默取其一会让论文里"修改率"与"决策比例"互相矛盾，且矛盾是看不出来的。
+    if modified in TRUE_VALUES and decision == "ACCEPT":
+        raise ValueError(f"{path} 的 teacher_modified 与 review_decision 不一致")
+    if modified in FALSE_VALUES and decision != "ACCEPT":
+        raise ValueError(f"{path} 的 teacher_modified 与 review_decision 不一致")
 
     return GradingCase(
         case_id=required("case_id"),
@@ -249,6 +276,9 @@ def _to_case(row: dict[str, str], path: Path) -> GradingCase:
         ai_seconds=number("ai_seconds"),
         input_tokens=count("input_tokens"),
         output_tokens=count("output_tokens"),
+        review_decision=decision,
+        model_name=optional_text("model_name"),
+        prompt_version=optional_text("prompt_version"),
     )
 
 
@@ -265,6 +295,7 @@ def evaluate(cases: Sequence[GradingCase], labels: Sequence[str] | None = None,
     teacher_median = median([case.teacher_seconds for case in cases])
     ai_mean = mean([case.ai_seconds for case in cases])
     ai_median = median([case.ai_seconds for case in cases])
+    decisions = [case.review_decision for case in cases]
 
     return {
         "sample_count": len(cases),
@@ -284,8 +315,27 @@ def evaluate(cases: Sequence[GradingCase], labels: Sequence[str] | None = None,
             "macro_f1": _round(macro_f1(metrics)),
             "confusion_matrix": confusion_matrix(cases, labels),
         },
+        # 采纳 / 修改 / 驳回各自的比例。三项之和为 1，好让读者一眼看出教师
+        # 到底是"基本认可模型"还是"大量推翻"，而不是只有一个笼统的修改率。
+        "review_decision_rate": {
+            "accept": _round(_rate(decisions.count("ACCEPT"), len(cases))),
+            "modify": _round(_rate(decisions.count("MODIFY"), len(cases))),
+            "reject": _round(_rate(decisions.count("REJECT"), len(cases))),
+        },
+        # 保留旧口径：论文前几节的数字按它统计，删掉会让新旧结果失去可比性。
+        # 它与 review_decision_rate 的 modify + reject 必然相等，这个恒等式由
+        # read_grading_cases 的一致性校验保证，而不是靠调用方自觉。
         "teacher_modification_rate": _round(
             _rate(sum(1 for case in cases if case.teacher_modified), len(cases))),
+        # 模型名与提示词版本决定了"这个结果是用哪个模型、哪版提示词跑出来的"，
+        # 不记下来，半年后没人能说清指标对应的是哪一次实验。
+        "provenance": {
+            "model_names": sorted({case.model_name for case in cases if case.model_name}),
+            "prompt_versions": sorted(
+                {case.prompt_version for case in cases if case.prompt_version}),
+            "missing_model_name_count": sum(case.model_name is None for case in cases),
+            "missing_prompt_version_count": sum(case.prompt_version is None for case in cases),
+        },
         "timing": {
             "teacher_mean_seconds": _round(teacher_mean),
             "teacher_median_seconds": _round(teacher_median),
@@ -347,8 +397,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"样本数 {result['sample_count']}，"
           f"平均绝对误差 {result['score']['mean_absolute_error']}，"
           f"容差 {result['score']['tolerance']} 分命中率 {result['score']['within_tolerance_rate']}，"
-          f"错因宏平均 F1 {result['error_type']['macro_f1']}，"
-          f"教师修改率 {result['teacher_modification_rate']}")
+          f"错因宏平均 F1 {result['error_type']['macro_f1']}")
+    decision = result["review_decision_rate"]
+    print(f"复核决策：采纳 {decision['accept']}，修改 {decision['modify']}，驳回 {decision['reject']}；"
+          f"修改率（旧口径）{result['teacher_modification_rate']}")
+    provenance = result["provenance"]
+    print(f"模型溯源：模型 {provenance['model_names']}，"
+          f"提示词版本 {provenance['prompt_versions']}，"
+          f"模型名缺失 {provenance['missing_model_name_count']} 条，"
+          f"提示词版本缺失 {provenance['missing_prompt_version_count']} 条")
     if result["unknown_labels"]:
         print(f"警告：样本中出现标签表以外的标签 {result['unknown_labels']}", file=sys.stderr)
     print(f"结果已写入 {args.output}")
