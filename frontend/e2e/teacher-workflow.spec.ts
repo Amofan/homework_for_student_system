@@ -19,9 +19,10 @@ test('教师登录后可查看作业、复核队列与学情画像，并生成�
   await expect(page.getByText('一元一次方程课堂巩固')).toBeVisible()
 
   // 题库是公式出现的第一站：先在这里确认 $...$ 真的被渲染成了公式节点。
+  // 这道题有两个公式段，所以断言 .first()——不加的话严格模式会因为匹配到两个元素而报错。
   await page.getByRole('link', { name: /数学题库/ }).click()
   const equationCard = page.locator('.question-card').filter({ hasText: 'Q-ALG-001' })
-  await expect(equationCard.locator('.katex')).toBeVisible()
+  await expect(equationCard.locator('.katex').first()).toBeVisible()
   await expect(equationCard).not.toContainText('$2x+1=5$')
 
   await page.getByRole('link', { name: /教师复核/ }).click()
