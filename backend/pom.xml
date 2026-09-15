@@ -21,6 +21,12 @@
         <java.version>21</java.version>
         <poi.version>5.4.1</poi.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <!--
+          固定 H2 到 Flyway 已验证的上限（2.3.232）。用 Spring Boot 默认的 2.4.x 时，
+          每次启动都会打印"newer than the version Flyway has been verified with"，
+          让真正的告警淹没在噪声里。H2 只用于测试与 demo，正式库仍是 MySQL 8.4。
+        -->
+        <h2.version>2.3.232</h2.version>
     </properties>
 
     <dependencies>
