@@ -3,6 +3,8 @@ package com.homework.analysis.grading.review;
 import com.homework.analysis.assignment.AssignmentService;
 import com.homework.analysis.shared.error.DomainException;
 import com.homework.analysis.shared.jdbc.GeneratedKeys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,14 @@ import java.util.List;
 
 @Service
 public class TeacherReviewService {
+    private static final Logger log = LoggerFactory.getLogger(TeacherReviewService.class);
+    /**
+     * 教师复核耗时的上限（秒）。它是前端计时，不是可信输入：
+     * 标签页被挂起、时钟被改动都会给出荒唐的值。超限只影响论文统计的一行，
+     * 不该拦住教师批改，因此记空值并留一条警告，而不是抛出错误。
+     */
+    private static final double MAX_TEACHER_SECONDS = 3600;
+
     private final JdbcClient jdbc;
     private final AssignmentService assignments;
 
@@ -83,12 +93,13 @@ public class TeacherReviewService {
         }
         long reviewId = GeneratedKeys.insert(jdbc, """
                 insert into teacher_review(result_id, teacher_id, decision, final_score,
-                                           final_error_type, feedback, reason)
-                values (:resultId, :teacherId, :decision, :score, :errorType, :feedback, :reason)
+                                           final_error_type, feedback, reason, teacher_seconds)
+                values (:resultId, :teacherId, :decision, :score, :errorType, :feedback, :reason, :seconds)
                 """, statement -> statement
             .param("resultId", resultId).param("teacherId", teacherId)
             .param("decision", command.decision().name()).param("score", finalScore)
-            .param("errorType", errorType).param("feedback", feedback).param("reason", command.reason()));
+            .param("errorType", errorType).param("feedback", feedback).param("reason", command.reason())
+            .param("seconds", sanitizeSeconds(command.teacherSeconds())));
         jdbc.sql("""
                 update grading_result set confirmed_score = :score, error_type = :errorType,
                     student_feedback = :feedback, status = 'CONFIRMED', version = version + 1,
@@ -105,6 +116,19 @@ public class TeacherReviewService {
             .param("detail", "{\"finalScore\":" + finalScore + "}")
             .update();
         return new ReviewView(reviewId, resultId, command.decision(), finalScore, errorType, feedback, command.reason());
+    }
+
+    /**
+     * 复核耗时是缺失即缺失的统计量：无法取值时记 null，绝不用 0 顶替——
+     * 0 秒会被均值算法当成“教师一瞬间就批完了”，把省时比例算得虚高。
+     */
+    private static Double sanitizeSeconds(Double seconds) {
+        if (seconds == null) return null;
+        if (seconds.isNaN() || seconds.isInfinite() || seconds < 0 || seconds > MAX_TEACHER_SECONDS) {
+            log.warn("教师复核耗时超出可接受范围，按缺失记录：seconds={} 上限={}", seconds, MAX_TEACHER_SECONDS);
+            return null;
+        }
+        return seconds;
     }
 
     private static void requireReason(String reason) {

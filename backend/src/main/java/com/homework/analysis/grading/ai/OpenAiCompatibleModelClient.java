@@ -35,7 +35,7 @@ public final class OpenAiCompatibleModelClient implements AiModelClient {
     }
 
     @Override
-    public AiGradingSuggestion grade(AiGradingRequest request) {
+    public ModelCall grade(AiGradingRequest request) {
         Map<String, Object> body = Map.of(
             "model", properties.name(),
             "input", promptBuilder.build(request),
@@ -45,6 +45,7 @@ public final class OpenAiCompatibleModelClient implements AiModelClient {
                 "name", "grading_suggestion",
                 "strict", true,
                 "schema", responseSchema())));
+        long startedNanos = System.nanoTime();
         try {
             JsonNode response = client.post()
                 .uri(properties.apiPath())
@@ -53,9 +54,12 @@ public final class OpenAiCompatibleModelClient implements AiModelClient {
                 .body(body)
                 .retrieve()
                 .body(JsonNode.class);
+            // 只量这一次 HTTP 交换：紧随响应返回取值，解析与校验不计入 ai_seconds。
+            double aiSeconds = roundMillis(System.nanoTime() - startedNanos);
             String text = extractOutputText(response);
             AiGradingSuggestion suggestion = objectMapper.readValue(text, AiGradingSuggestion.class);
-            return validator.validate(request, suggestion);
+            return new ModelCall(validator.validate(request, suggestion),
+                tokenCount(response, "input_tokens"), tokenCount(response, "output_tokens"), aiSeconds);
         } catch (DomainException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -63,6 +67,16 @@ public final class OpenAiCompatibleModelClient implements AiModelClient {
             // 但丢掉根因会让连接层与解析层故障无法区分，排障只能靠猜测。
             throw new DomainException("MODEL_CALL_FAILED", "大模型调用失败，请稍后重试", exception);
         }
+    }
+
+    /** 用量取自 usage 块；缺失时返回 null，避免把“没有数据”记成 0。 */
+    private static Integer tokenCount(JsonNode response, String field) {
+        JsonNode value = response.path("usage").path(field);
+        return value.isNumber() ? value.asInt() : null;
+    }
+
+    private static double roundMillis(long nanos) {
+        return Math.round(nanos / 1_000_000.0) / 1000.0;
     }
 
     private static String extractOutputText(JsonNode response) {

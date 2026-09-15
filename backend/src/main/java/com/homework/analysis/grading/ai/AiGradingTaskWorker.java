@@ -1,6 +1,8 @@
 package com.homework.analysis.grading.ai;
 
 import com.homework.analysis.assignment.AssignmentService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import java.util.List;
 
 @Service
 public class AiGradingTaskWorker {
+    private static final Logger log = LoggerFactory.getLogger(AiGradingTaskWorker.class);
     private static final List<String> ERROR_TYPES = List.of(
         "CORRECT", "CALCULATION_ERROR", "METHOD_ERROR", "CONCEPT_ERROR", "INCOMPLETE", "OTHER");
     /** 候选任务可能被其它线程抢先领取，最多重新挑选若干轮，避免线程在同一答案上反复竞争。 */
@@ -44,33 +47,48 @@ public class AiGradingTaskWorker {
         AiGradingRequest request = new AiGradingRequest("answer-" + task.answerId(), task.question(),
             task.standardAnswer(), task.answer(), task.totalScore(), rubrics(task.answerId()), ERROR_TYPES);
         try {
-            AiGradingSuggestion suggestion = modelClient.grade(request);
+            ModelCall call = modelClient.grade(request);
+            AiGradingSuggestion suggestion = call.suggestion();
             String details = objectMapper.writeValueAsString(suggestion.scoreDetails());
+            // ai_error_type 与 error_type 写入同一个值：error_type 之后会被教师复核改写，
+            // 模型原始错因必须留在这一列里，否则错因一致率无从统计。
             jdbc.sql("""
-                    insert into grading_result(answer_id, source, suggested_score, error_type,
+                    insert into grading_result(answer_id, source, suggested_score, error_type, ai_error_type,
                                                teacher_explanation, student_feedback, score_details, status)
-                    values (:answerId, 'AI', :score, :errorType, :explanation, :feedback, :details, 'PENDING_REVIEW')
+                    values (:answerId, 'AI', :score, :errorType, :aiErrorType, :explanation, :feedback, :details,
+                            'PENDING_REVIEW')
                     """)
                 .param("answerId", task.answerId())
                 .param("score", suggestion.suggestedScore())
                 .param("errorType", suggestion.errorType())
+                .param("aiErrorType", suggestion.errorType())
                 .param("explanation", suggestion.teacherExplanation())
                 .param("feedback", suggestion.studentFeedback())
                 .param("details", details)
                 .update();
             jdbc.sql("""
                     update ai_grading_task set status = 'SUCCEEDED', model_name = :modelName,
-                        sanitized_response = :response, attempt_count = attempt_count + 1,
+                        sanitized_response = :response, input_tokens = :inputTokens,
+                        output_tokens = :outputTokens, ai_seconds = :aiSeconds,
+                        attempt_count = attempt_count + 1,
                         updated_at = current_timestamp(3) where id = :id
                     """)
                 .param("modelName", modelName)
                 .param("response", details)
+                .param("inputTokens", call.inputTokens())
+                .param("outputTokens", call.outputTokens())
+                .param("aiSeconds", call.aiSeconds())
                 .param("id", task.taskId())
                 .update();
             return new AiTaskProcessResult(true, task.taskId(), "SUCCEEDED", "AI 建议已生成，等待教师复核");
         } catch (Exception exception) {
             int attempts = task.attemptCount() + 1;
             String status = attempts >= 4 ? "MANUAL_REQUIRED" : "RETRYABLE_FAILED";
+            // 失败原因写入日志：这里把所有异常统一映射为同一条对外消息，若再不记录 cause，
+            // 配置错误、连接失败与响应解析失败在外部完全无法区分。异常链不含密钥与响应体
+            // （见 OpenAiCompatibleModelClient 的封装），可以安全落盘。
+            log.warn("AI 评分任务处理失败：taskId={} answerId={} 模型={} 状态={} 第 {} 次尝试",
+                task.taskId(), task.answerId(), modelName, status, attempts, exception);
             Instant now = clock.instant();
             Instant next = switch (attempts) {
                 case 1 -> now.plus(30, ChronoUnit.SECONDS);

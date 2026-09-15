@@ -57,6 +57,23 @@ class ScoreMetricsTest(unittest.TestCase):
         self.assertEqual(eg.mean([10.0, None, 20.0]), 15.0)
         self.assertEqual(eg.mean([None, None]), 0.0)
 
+    def test_median_skips_missing_values_like_mean(self):
+        self.assertEqual(eg.median([10.0, None, 20.0]), 15.0)
+        self.assertEqual(eg.median([None, None]), 0.0)
+
+    def test_median_averages_the_two_middle_values(self):
+        # 偶数个样本取中间两个的平均，这是中位数的定义，不是取其中一个
+        self.assertEqual(eg.median([1.0, 2.0, 3.0, 4.0]), 2.5)
+        self.assertEqual(eg.median([3.0, 1.0, 2.0]), 2.0)
+
+    def test_median_resists_the_outlier_that_drags_the_mean(self):
+        # 教师中途去忙别的事，留下一小时的空档：均值被带偏，中位数基本不动。
+        # 两个口径并列输出，就是为了让这种偏斜看得见
+        seconds = [30.0, 32.0, 35.0, 40.0, 3600.0]
+
+        self.assertGreater(eg.mean(seconds), 700)
+        self.assertEqual(eg.median(seconds), 35.0)
+
     def test_saving_ratio_never_goes_negative(self):
         # AI 比教师还慢时，节省比例按 0 报，不报负数
         self.assertEqual(eg.estimated_saving_ratio(10.0, 25.0), 0.0)
@@ -193,6 +210,10 @@ class EndToEndTest(unittest.TestCase):
         # 教师用时段与 AI 用时段各自求和后取均值
         self.assertEqual(result["timing"]["teacher_mean_seconds"], 54.0)
         self.assertEqual(result["timing"]["ai_mean_seconds"], 9.875)
+        # 教师用时排序后中间两项是 52 与 55；AI 用时是 9 与 10。
+        # 示例数据没有离群值，中位数与均值接近，说明这组样本本身不偏
+        self.assertEqual(result["timing"]["teacher_median_seconds"], 53.5)
+        self.assertEqual(result["timing"]["ai_median_seconds"], 9.5)
         self.assertAlmostEqual(result["timing"]["estimated_saving_ratio"], 0.81713, places=5)
         self.assertEqual(result["tokens"]["input_total"], 6550)
         self.assertEqual(result["tokens"]["output_total"], 1205)

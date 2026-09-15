@@ -70,7 +70,8 @@ class OpenAiCompatibleModelClientTest {
     void 成功响应时按契约发送请求并返回通过校验的建议() throws Exception {
         MODEL.stubFor(post(urlEqualTo(API_PATH)).willReturn(okJson(successResponse())));
 
-        AiGradingSuggestion suggestion = modelClient.grade(request());
+        ModelCall call = modelClient.grade(request());
+        AiGradingSuggestion suggestion = call.suggestion();
 
         assertThat(suggestion.suggestedScore()).isEqualTo(6);
         assertThat(suggestion.errorType()).isEqualTo("CORRECT");
@@ -87,6 +88,34 @@ class OpenAiCompatibleModelClientTest {
         assertThat(body.path("text").path("format").path("type").asText()).isEqualTo("json_schema");
         assertThat(body.path("text").path("format").path("strict").asBoolean()).isTrue();
         assertThat(body.path("text").path("format").path("schema").path("required").size()).isPositive();
+    }
+
+    @Test
+    void 用量与耗时随建议一起返回() throws Exception {
+        MODEL.stubFor(post(urlEqualTo(API_PATH)).willReturn(okJson(successResponse())));
+
+        ModelCall call = modelClient.grade(request());
+
+        assertThat(call.inputTokens()).isEqualTo(513);
+        assertThat(call.outputTokens()).isEqualTo(604);
+        assertThat(call.aiSeconds()).isGreaterThanOrEqualTo(0.0);
+    }
+
+    @Test
+    void 响应未带usage时用量为空而不是零() throws Exception {
+        MODEL.stubFor(post(urlEqualTo(API_PATH)).willReturn(okJson(responseWithText(
+            objectMapper.writeValueAsString(Map.of(
+                "suggestedScore", 6,
+                "scoreDetails", List.of(Map.of("rubricId", 1, "score", 6, "evidence", "列式正确")),
+                "errorType", "CORRECT",
+                "teacherExplanation", "过程完整",
+                "studentFeedback", "保持书写规范",
+                "needsTeacherReview", true))))));
+
+        ModelCall call = modelClient.grade(request());
+
+        assertThat(call.inputTokens()).isNull();
+        assertThat(call.outputTokens()).isNull();
     }
 
     @Test
@@ -203,9 +232,12 @@ class OpenAiCompatibleModelClientTest {
             "needsTeacherReview", true));
     }
 
-    /** 按 Responses 风格包装模型输出，text 字段内是模型返回的 JSON 字符串。 */
+    /** 按 Responses 风格包装模型输出，text 字段内是模型返回的 JSON 字符串，并带上 usage 块。 */
     private String responseWithSuggestion(Map<String, Object> suggestion) {
-        return responseWithText(objectMapper.writeValueAsString(suggestion));
+        return objectMapper.writeValueAsString(Map.of(
+            "output", List.of(Map.of("content", List.of(Map.of(
+                "type", "output_text", "text", objectMapper.writeValueAsString(suggestion))))),
+            "usage", Map.of("input_tokens", 513, "output_tokens", 604)));
     }
 
     private String responseWithText(String text) {

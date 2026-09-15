@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,6 +86,19 @@ def mean(values: Iterable[float | None]) -> float:
     if not present:
         return 0.0
     return sum(present) / len(present)
+
+
+def median(values: Iterable[float | None]) -> float:
+    """中位数。与 mean 同样跳过缺失值，全缺或空集返回 0，保持两个口径可直接对照。
+
+    加它的原因是用时分布不对称：教师中途去处理别的事，会留下一个几十分钟的
+    离群值，把均值整体拉高。中位数不受个别离群值影响，两者一起看才知道
+    平均是被少数样本拖上去的，还是本来就慢。评分误差这类有界量仍用 mean。
+    """
+    present = [value for value in values if value is not None]
+    if not present:
+        return 0.0
+    return float(statistics.median(present))
 
 
 def mean_absolute_error(pairs: Sequence[tuple[float, float]]) -> float:
@@ -248,7 +262,9 @@ def evaluate(cases: Sequence[GradingCase], labels: Sequence[str] | None = None,
     pairs = [(case.teacher_score, case.ai_score) for case in cases]
     metrics = per_label_metrics(cases, list(labels or ()))
     teacher_mean = mean([case.teacher_seconds for case in cases])
+    teacher_median = median([case.teacher_seconds for case in cases])
     ai_mean = mean([case.ai_seconds for case in cases])
+    ai_median = median([case.ai_seconds for case in cases])
 
     return {
         "sample_count": len(cases),
@@ -272,7 +288,12 @@ def evaluate(cases: Sequence[GradingCase], labels: Sequence[str] | None = None,
             _rate(sum(1 for case in cases if case.teacher_modified), len(cases))),
         "timing": {
             "teacher_mean_seconds": _round(teacher_mean),
+            "teacher_median_seconds": _round(teacher_median),
             "ai_mean_seconds": _round(ai_mean),
+            "ai_median_seconds": _round(ai_median),
+            # 省时比例仍按均值算：论文里引用的是"平均节省多少时间"，
+            # 换成中位数口径会让这个已有数字悄悄改变。两个口径都在上面，
+            # 中位数只用来判断均值有没有被离群值带偏。
             "estimated_saving_ratio": _round(estimated_saving_ratio(teacher_mean, ai_mean)),
         },
         "tokens": {

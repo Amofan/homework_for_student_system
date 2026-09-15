@@ -11,6 +11,10 @@ const assignmentId = ref<number>()
 const queue = ref<ReviewQueueItem[]>([])
 const selected = ref<ReviewQueueItem>()
 const loading = ref(false)
+// 复核计时：交给前端是因为只有界面知道教师从哪一刻开始看这道题。
+// 用 performance.now() 而不是 Date.now()：它是单调时钟，系统对时或夏令时回拨
+// 都不会算出负数耗时。
+const startedAt = ref<number>()
 const form = reactive({ decision: 'ACCEPT', finalScore: undefined as number | undefined, errorType: '', feedback: '', reason: '' })
 const currentIndex = computed(() => selected.value ? queue.value.findIndex(item => item.resultId === selected.value?.resultId) + 1 : 0)
 async function loadQueue() {
@@ -19,10 +23,15 @@ async function loadQueue() {
   try { const response = await api.get<ApiResponse<ReviewQueueItem[]>>(`/grading/assignments/${assignmentId.value}/review-queue`); queue.value = response.data.data; select(queue.value[0]) }
   catch (reason) { ElMessage.error(errorMessage(reason)) } finally { loading.value = false }
 }
-function select(item?: ReviewQueueItem) { selected.value = item; if (item) Object.assign(form, { decision: 'ACCEPT', finalScore: item.suggestedScore, errorType: item.errorType, feedback: item.studentFeedback ?? '', reason: '' }) }
+function select(item?: ReviewQueueItem) { selected.value = item; startedAt.value = item ? performance.now() : undefined; if (item) Object.assign(form, { decision: 'ACCEPT', finalScore: item.suggestedScore, errorType: item.errorType, feedback: item.studentFeedback ?? '', reason: '' }) }
+/** 复核耗时（秒，三位小数）。取不到计时就上交缺失，不交 0——0 秒会被统计成“瞬间批完”。 */
+function elapsedSeconds(): number | undefined {
+  if (startedAt.value === undefined) return undefined
+  return Math.round(performance.now() - startedAt.value) / 1000
+}
 async function confirm() {
   if (!selected.value) return
-  try { await api.post(`/grading/results/${selected.value.resultId}/review`, form); ElMessage.success('复核已确认，结果已进入学情分析'); await loadQueue() }
+  try { await api.post(`/grading/results/${selected.value.resultId}/review`, { ...form, teacherSeconds: elapsedSeconds() }); ElMessage.success('复核已确认，结果已进入学情分析'); await loadQueue() }
   catch (reason) { ElMessage.error(errorMessage(reason)) }
 }
 watch(assignmentId, loadQueue)

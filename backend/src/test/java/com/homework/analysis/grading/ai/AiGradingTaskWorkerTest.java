@@ -129,9 +129,7 @@ class AiGradingTaskWorkerTest {
 
     @Test
     void 模型返回建议时写入待复核结果并结束任务() {
-        given(modelClient.grade(any())).willReturn(new AiGradingSuggestion(6,
-            List.of(new AiGradingSuggestion.RubricScoreDetail(1, 6, "列式正确")),
-            "CORRECT", "过程完整", "保持书写规范", true));
+        given(modelClient.grade(any())).willReturn(call(suggestion(), 513, 604, 3.799));
 
         AiTaskProcessResult result = worker().processOne(TEACHER_ID, ASSIGNMENT_ID);
 
@@ -140,12 +138,33 @@ class AiGradingTaskWorkerTest {
         assertThat(task().get("model_name")).isEqualTo("stub-model");
         assertThat(task().get("attempt_count")).isEqualTo(1);
 
-        Map<String, Object> grading = jdbc.queryForMap(
-            "select source, suggested_score, error_type, status from grading_result where answer_id = 611");
+        Map<String, Object> grading = jdbc.queryForMap("select source, suggested_score, error_type, ai_error_type,"
+            + " status from grading_result where answer_id = 611");
         assertThat(grading.get("source")).isEqualTo("AI");
         assertThat(grading.get("suggested_score")).isEqualTo(6);
         assertThat(grading.get("error_type")).isEqualTo("CORRECT");
+        // 复核会改写 error_type，模型原始错因必须同时留在 ai_error_type
+        assertThat(grading.get("ai_error_type")).isEqualTo("CORRECT");
         assertThat(grading.get("status")).isEqualTo("PENDING_REVIEW");
+
+        Map<String, Object> call = jdbc.queryForMap("select input_tokens, output_tokens, ai_seconds"
+            + " from ai_grading_task where id = " + TASK_ID);
+        assertThat(call.get("input_tokens")).isEqualTo(513);
+        assertThat(call.get("output_tokens")).isEqualTo(604);
+        assertThat(((Number) call.get("ai_seconds")).doubleValue()).isEqualTo(3.799);
+    }
+
+    @Test
+    void 模型未返回用量时记为空而不是零() {
+        given(modelClient.grade(any())).willReturn(call(suggestion(), null, null, 0.512));
+
+        assertThat(worker().processOne(TEACHER_ID, ASSIGNMENT_ID).status()).isEqualTo("SUCCEEDED");
+
+        Map<String, Object> stored = jdbc.queryForMap("select input_tokens, output_tokens, ai_seconds"
+            + " from ai_grading_task where id = " + TASK_ID);
+        assertThat(stored.get("input_tokens")).isNull();
+        assertThat(stored.get("output_tokens")).isNull();
+        assertThat(((Number) stored.get("ai_seconds")).doubleValue()).isEqualTo(0.512);
     }
 
     @Test
@@ -156,6 +175,16 @@ class AiGradingTaskWorkerTest {
         // 越权请求不得改动任何任务状态
         assertThat(task().get("status")).isEqualTo("PENDING");
         assertThat(task().get("attempt_count")).isEqualTo(0);
+    }
+
+    private static AiGradingSuggestion suggestion() {
+        return new AiGradingSuggestion(6, List.of(new AiGradingSuggestion.RubricScoreDetail(1, 6, "列式正确")),
+            "CORRECT", "过程完整", "保持书写规范", true);
+    }
+
+    private static ModelCall call(AiGradingSuggestion suggestion, Integer inputTokens,
+                                  Integer outputTokens, double aiSeconds) {
+        return new ModelCall(suggestion, inputTokens, outputTokens, aiSeconds);
     }
 
     private void failAndExpire() {
