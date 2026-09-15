@@ -6,15 +6,18 @@ spring:
   flyway:
     enabled: true
 
+# profile 专属文件的优先级高于 application.yml，此处写死的字面量会把 application.yml 里的
+# ${MODEL_ENABLED:...} 之类的占位符彻底压掉，环境变量再也到不了 app.model.*。
+# 因此这里只提供 demo 自己的默认值，覆盖入口仍留给环境变量。
 app:
   jwt:
     issuer: homework-analysis-demo
-    secret: demo-secret-only-for-local-demo-2026-change-me
+    secret: ${JWT_SECRET:demo-secret-only-for-local-demo-2026-change-me}
     access-minutes: 120
   model:
-    enabled: false
-    base-url: http://localhost
-    api-path: /v1/responses
-    name: disabled
-    api-key: ""
-    timeout-seconds: 10
+    enabled: ${MODEL_ENABLED:false}
+    base-url: ${MODEL_BASE_URL:http://localhost}
+    api-path: ${MODEL_API_PATH:/v1/responses}
+    name: ${MODEL_NAME:disabled}
+    api-key: ${MODEL_API_KEY:}
+    timeout-seconds: ${MODEL_TIMEOUT_SECONDS:10}
