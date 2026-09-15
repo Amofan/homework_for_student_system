@@ -90,7 +90,7 @@ public class ExerciseService {
         return requireOwned(teacherId, exerciseId);
     }
 
-    public byte[] exportDocx(long teacherId, long exerciseId) {
+    public ExportedDocument exportDocx(long teacherId, long exerciseId) {
         ExerciseSetView exercise = requireOwned(teacherId, exerciseId);
         if (exercise.status() != ExerciseStatus.APPROVED) {
             throw new DomainException("EXERCISE_NOT_APPROVED", "练习单确认后才能导出 Word", HttpStatus.CONFLICT);

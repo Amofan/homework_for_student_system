@@ -16,6 +16,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -85,6 +87,8 @@ class ExerciseApiTest {
             .andExpect(header().string("Content-Type", DOCX_MIME))
             .andExpect(header().string("Content-Disposition",
                 "attachment; filename=\"exercise-" + exerciseId + ".docx\""))
+            // 题库全是子集内的公式，不该出现降级响应头
+            .andExpect(header().doesNotExist("X-Formula-Fallback"))
             .andReturn();
 
         byte[] document = exported.getResponse().getContentAsByteArray();
@@ -101,6 +105,35 @@ class ExerciseApiTest {
         mvc.perform(get("/api/exercises/" + exerciseId + "/export.docx").header("Authorization", bearer(11)))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.error.code").value("EXERCISE_NOT_APPROVED"));
+    }
+
+    @Test
+    void 题库出现子集外的公式时导出返回降级题号() throws Exception {
+        seedThreeTiers();
+        long exerciseId = generate();
+        mvc.perform(post("/api/exercises/" + exerciseId + "/approve").header("Authorization", bearer(11)))
+            .andExpect(status().isOk());
+        // 导出时按 question 表读回题干，所以改题库就能让这道题降级
+        jdbc.update("update question set content = ? where id = 401", "$\\vec{a}$");
+
+        mvc.perform(get("/api/exercises/" + exerciseId + "/export.docx")
+                .header("Authorization", bearer(11)))
+            .andExpect(status().isOk())
+            .andExpect(header().string("X-Formula-Fallback", "Q-401"));
+    }
+
+    /**
+     * 业务规则把一张练习单限制在 15 题以内，用数据库造 21 条降级记录会把接口测试
+     * 淹在不可能出现的场景里，所以截断规则直接用包级可见的辅助方法验证。
+     */
+    @Test
+    void 降级题号最多保留二十个并追加省略号() {
+        List<String> codes = IntStream.rangeClosed(1, 21).mapToObj(index -> "Q-" + index).toList();
+
+        assertThat(ExerciseController.fallbackHeader(codes))
+            .isEqualTo("Q-1,Q-2,Q-3,Q-4,Q-5,Q-6,Q-7,Q-8,Q-9,Q-10,"
+                + "Q-11,Q-12,Q-13,Q-14,Q-15,Q-16,Q-17,Q-18,Q-19,Q-20,...");
+        assertThat(ExerciseController.fallbackHeader(List.of())).isEmpty();
     }
 
     @Test

@@ -12,7 +12,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 把一张已确认的练习单排成可打印的 Word 文档。
@@ -24,18 +26,22 @@ import java.util.List;
 public class ExerciseDocumentExporter {
 
     private static final String[] TIER_NUMERALS = {"一", "二", "三"};
+    /** 降级公式的 run 颜色，与页面端 KaTeX 的错误色一致。 */
+    private static final String FALLBACK_COLOR = "CC0000";
     private static final DateTimeFormatter GENERATED_AT =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
-    public byte[] write(ExerciseSetView exercise) {
+    public ExportedDocument write(ExerciseSetView exercise) {
+        // LinkedHashSet：题号要按在文档里出现的顺序去重，同一题多次降级只点名一次。
+        Set<String> fallbackCodes = new LinkedHashSet<>();
         try (XWPFDocument document = new XWPFDocument()) {
             writeHeader(document, exercise);
-            writeItems(document, exercise.items());
-            writeTeacherReference(document, exercise.items());
+            writeItems(document, exercise.items(), fallbackCodes);
+            writeTeacherReference(document, exercise.items(), fallbackCodes);
 
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             document.write(output);
-            return output.toByteArray();
+            return new ExportedDocument(output.toByteArray(), List.copyOf(fallbackCodes));
         } catch (IOException exception) {
             throw new UncheckedIOException("练习单 Word 文档生成失败", exception);
         }
@@ -54,7 +60,8 @@ public class ExerciseDocumentExporter {
             .setText("说明：本练习单按班级已确认的学情画像分层组题，题目全部取自现有题库。");
     }
 
-    private static void writeItems(XWPFDocument document, List<ExerciseItemView> items) {
+    private static void writeItems(XWPFDocument document, List<ExerciseItemView> items,
+                                   Set<String> fallbackCodes) {
         for (ExerciseTier tier : ExerciseTier.values()) {
             List<ExerciseItemView> tierItems = itemsOf(items, tier);
             if (tierItems.isEmpty()) {
@@ -65,15 +72,18 @@ public class ExerciseDocumentExporter {
             styled(document.createParagraph(), 10, false).setText(tier.description());
 
             for (ExerciseItemView item : tierItems) {
+                // 题号、分值、知识点都是系统生成的，不参与公式转换，保持普通 run。
                 styled(document.createParagraph(), 12, true).setText(item.sortOrder() + "．（"
                     + item.questionCode() + "，" + item.totalScore() + " 分，知识点："
                     + item.knowledgePointName() + "）");
-                styled(document.createParagraph(), 12, false).setText(item.content());
+                writeText(document.createParagraph(), 12, false, item.content(), fallbackCodes,
+                    item.questionCode());
             }
         }
     }
 
-    private static void writeTeacherReference(XWPFDocument document, List<ExerciseItemView> items) {
+    private static void writeTeacherReference(XWPFDocument document, List<ExerciseItemView> items,
+                                              Set<String> fallbackCodes) {
         XWPFParagraph heading = document.createParagraph();
         heading.setPageBreak(true);
         styled(heading, 16, true).setText("教师参考区（答案与评分细则）");
@@ -87,12 +97,35 @@ public class ExerciseDocumentExporter {
             for (ExerciseItemView item : tierItems) {
                 XWPFParagraph line = document.createParagraph();
                 styled(line, 11, true).setText(item.questionCode() + "　标准答案：");
-                styled(line, 11, false).setText(item.standardAnswer() == null ? "略" : item.standardAnswer());
+                writeText(line, 11, false,
+                    item.standardAnswer() == null ? "略" : item.standardAnswer(),
+                    fallbackCodes, item.questionCode());
                 for (RubricView rubric : item.rubricItems()) {
-                    styled(document.createParagraph(), 11, false).setText("　　" + rubric.orderNo() + ". "
-                        + rubric.title() + "（" + rubric.maxScore() + " 分）：" + rubric.criteria());
+                    // 拆成五条 run：只有评分项标题与得分标准是用户文本，标红不能波及序号和分值。
+                    XWPFParagraph paragraph = document.createParagraph();
+                    styled(paragraph, 11, false).setText("　　" + rubric.orderNo() + ". ");
+                    writeText(paragraph, 11, false, rubric.title(), fallbackCodes, item.questionCode());
+                    styled(paragraph, 11, false).setText("（" + rubric.maxScore() + " 分）：");
+                    writeText(paragraph, 11, false, rubric.criteria(), fallbackCodes, item.questionCode());
                 }
             }
+        }
+    }
+
+    /**
+     * 写入一段可能含公式的用户文本。
+     *
+     * <p>子集内的公式换成 Unicode；子集外的命令保留原文并把该 run 标红，
+     * 同时记下题号，让教师在下载时知道是哪些题。
+     */
+    private static void writeText(XWPFParagraph paragraph, int fontSize, boolean bold, String raw,
+                                  Set<String> fallbackCodes, String questionCode) {
+        LatexToUnicode.Conversion conversion = LatexToUnicode.convert(raw == null ? "" : raw);
+        XWPFRun run = styled(paragraph, fontSize, bold);
+        run.setText(conversion.text());
+        if (conversion.fellBack()) {
+            run.setColor(FALLBACK_COLOR);
+            fallbackCodes.add(questionCode);
         }
     }
 

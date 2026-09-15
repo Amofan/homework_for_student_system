@@ -23,6 +23,10 @@ final class ExerciseController {
     /** 官方 Word 文档类型：浏览器据此直接下载，而不是当文本渲染。 */
     private static final MediaType DOCX = MediaType.parseMediaType(
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    /** 自定义响应头，告诉前端哪些题目的公式没能完整转成 Word 格式。 */
+    private static final String FORMULA_FALLBACK = "X-Formula-Fallback";
+    /** 响应头里最多列出的题号个数。 */
+    private static final int MAX_REPORTED_FALLBACKS = 20;
 
     private final ExerciseService service;
     private final CurrentTeacher currentTeacher;
@@ -53,13 +57,32 @@ final class ExerciseController {
         return ApiResponse.ok(service.approve(currentTeacher.id(authentication), exerciseId));
     }
 
-    /** 导出不走统一信封：响应体就是文档字节，只能由浏览器直接保存。 */
+    /**
+     * 导出不走统一信封：响应体就是文档字节，只能由浏览器直接保存。
+     *
+     * <p>有公式降级时才加 {@code X-Formula-Fallback}；正常情况下不加这个头，
+     * 前端就能用"头在不在"区分两种结果。
+     */
     @GetMapping("/{exerciseId}/export.docx")
     ResponseEntity<byte[]> export(@PathVariable long exerciseId, Authentication authentication) {
-        byte[] document = service.exportDocx(currentTeacher.id(authentication), exerciseId);
-        return ResponseEntity.ok()
+        ExportedDocument document = service.exportDocx(currentTeacher.id(authentication), exerciseId);
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok()
             .contentType(DOCX)
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"exercise-" + exerciseId + ".docx\"")
-            .body(document);
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"exercise-" + exerciseId + ".docx\"");
+        String fallback = fallbackHeader(document.fallbackQuestionCodes());
+        if (!fallback.isEmpty()) {
+            response.header(FORMULA_FALLBACK, fallback);
+        }
+        return response.body(document.content());
+    }
+
+    /** 降级题号按文档顺序去重后上报；超过 20 个只报前 20 个，用 `...` 说明还有更多。 */
+    static String fallbackHeader(List<String> codes) {
+        if (codes.isEmpty()) {
+            return "";
+        }
+        List<String> visible = codes.stream().limit(MAX_REPORTED_FALLBACKS).toList();
+        String joined = String.join(",", visible);
+        return codes.size() > MAX_REPORTED_FALLBACKS ? joined + ",..." : joined;
     }
 }

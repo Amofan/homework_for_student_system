@@ -214,7 +214,7 @@ class ExerciseServiceTest {
 
         assertThat(approved.status()).isEqualTo(ExerciseStatus.APPROVED);
         assertThat(approved.approvedAt()).isNotNull();
-        assertThat(service.exportDocx(TEACHER, exerciseId)).isNotEmpty();
+        assertThat(service.exportDocx(TEACHER, exerciseId).content()).isNotEmpty();
     }
 
     @Test
