@@ -17,7 +17,8 @@ public final class ObjectiveRuleGrader {
         boolean correct = acceptedAnswers != null && acceptedAnswers.stream()
             .map(this::normalize)
             .anyMatch(actual::equals);
-        return new RuleGrade(correct ? totalScore : 0, correct ? "CORRECT" : "ANSWER_MISMATCH");
+        return new RuleGrade(correct ? totalScore : 0,
+            correct ? ErrorType.CORRECT : ErrorType.ANSWER_MISMATCH);
     }
 
     String normalize(String value) {

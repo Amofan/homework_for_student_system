@@ -95,6 +95,23 @@ class TeacherReviewApiTest {
         assertThat(row.get("confirmed_score")).isEqualTo(6);
     }
 
+    @Test
+    void 修改复核不能写入标签全集以外的错因() throws Exception {
+        mvc.perform(post("/api/grading/results/" + RESULT_ID + "/review")
+                .header("Authorization", bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"decision":"MODIFY","finalScore":6,"errorType":"手滑写错",\
+                     "reason":"修正模型判断"}
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error.code").value("REVIEW_ERROR_TYPE_INVALID"));
+
+        assertThat(jdbc.queryForObject(
+            "select status from grading_result where id = 701", String.class))
+            .isEqualTo("PENDING_REVIEW");
+    }
+
     private void review(String body) throws Exception {
         mvc.perform(post("/api/grading/results/" + RESULT_ID + "/review")
                 .header("Authorization", bearer())

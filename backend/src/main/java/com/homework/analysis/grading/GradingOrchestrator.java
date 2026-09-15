@@ -61,9 +61,11 @@ public class GradingOrchestrator {
                         """)
                     .param("answerId", answer.id())
                     .param("score", result.score())
-                    .param("reason", result.reasonCode())
-                    .param("explanation", result.reasonCode().equals("CORRECT") ? "答案与可接受答案一致" : "答案与已配置答案不一致")
-                    .param("feedback", result.reasonCode().equals("CORRECT") ? "回答正确" : "请检查计算过程和最终答案")
+                    .param("reason", result.errorType().name())
+                    .param("explanation", result.errorType() == ErrorType.CORRECT
+                        ? "答案与可接受答案一致" : "答案与已配置答案不一致")
+                    .param("feedback", result.errorType() == ErrorType.CORRECT
+                        ? "回答正确" : "请检查计算过程和最终答案")
                     .update();
                 rule++;
             }

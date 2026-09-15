@@ -1,6 +1,7 @@
 package com.homework.analysis.grading.ai;
 
 import com.homework.analysis.assignment.AssignmentService;
+import com.homework.analysis.grading.ErrorType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,8 +18,6 @@ import java.util.List;
 @Service
 public class AiGradingTaskWorker {
     private static final Logger log = LoggerFactory.getLogger(AiGradingTaskWorker.class);
-    private static final List<String> ERROR_TYPES = List.of(
-        "CORRECT", "CALCULATION_ERROR", "METHOD_ERROR", "CONCEPT_ERROR", "INCOMPLETE", "OTHER");
     /** 候选任务可能被其它线程抢先领取，最多重新挑选若干轮，避免线程在同一答案上反复竞争。 */
     private static final int MAX_CLAIM_ROUNDS = 3;
 
@@ -45,7 +44,7 @@ public class AiGradingTaskWorker {
         TaskData task = claimNextTask(assignmentId);
         if (task == null) return new AiTaskProcessResult(false, null, "EMPTY", "没有可处理的 AI 任务");
         AiGradingRequest request = new AiGradingRequest("answer-" + task.answerId(), task.question(),
-            task.standardAnswer(), task.answer(), task.totalScore(), rubrics(task.answerId()), ERROR_TYPES);
+            task.standardAnswer(), task.answer(), task.totalScore(), rubrics(task.answerId()), ErrorType.aiCodes());
         try {
             ModelCall call = modelClient.grade(request);
             AiGradingSuggestion suggestion = call.suggestion();

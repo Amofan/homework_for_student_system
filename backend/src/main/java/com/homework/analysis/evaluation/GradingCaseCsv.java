@@ -56,7 +56,7 @@ final class GradingCaseCsv {
     }
 
     /**
-     * 错因标签来自固定集合（见 {@code AiGradingTaskWorker.ERROR_TYPES}），本来不含逗号与引号，
+     * 错因标签来自固定集合（见 {@code ErrorType}），本来不含逗号与引号，
      * 但 CSV 的转义规则不该依赖“当前取值恰好安全”：一旦有人加了带逗号的标签，
      * 少一次转义就会让整份样本错位，而错位是静默的。
      */

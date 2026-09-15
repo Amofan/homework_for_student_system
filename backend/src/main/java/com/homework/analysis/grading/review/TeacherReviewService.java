@@ -1,6 +1,7 @@
 package com.homework.analysis.grading.review;
 
 import com.homework.analysis.assignment.AssignmentService;
+import com.homework.analysis.grading.ErrorType;
 import com.homework.analysis.shared.error.DomainException;
 import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.slf4j.Logger;
@@ -87,6 +88,11 @@ public class TeacherReviewService {
             }
             finalScore = command.finalScore();
             errorType = blankToFallback(command.errorType(), result.errorType());
+        }
+        // 最终错因是论文统计的口径来源，不能是自由文本。ACCEPT 沿用模型建议，
+        // 那也必须落在固定集合里，否则同样拒绝。
+        if (!ErrorType.isKnown(errorType)) {
+            throw new DomainException("REVIEW_ERROR_TYPE_INVALID", "最终错因必须从固定标签中选择");
         }
         if (finalScore < 0 || finalScore > result.totalScore()) {
             throw new DomainException("REVIEW_SCORE_OUT_OF_RANGE", "最终得分超出题目分值范围");

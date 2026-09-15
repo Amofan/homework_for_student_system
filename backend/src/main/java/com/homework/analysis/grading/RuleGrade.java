@@ -1,4 +1,4 @@
 package com.homework.analysis.grading;
 
-public record RuleGrade(int score, String reasonCode) {
+public record RuleGrade(int score, ErrorType errorType) {
 }
