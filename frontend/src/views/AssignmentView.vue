@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { api, errorMessage, type ApiResponse } from '../api/client'
+import { api, downloadEvaluationCases, errorMessage, type ApiResponse } from '../api/client'
 import type { Assignment, Classroom, Question } from '../api/types'
 
 const assignments = ref<Assignment[]>([])
@@ -33,6 +33,23 @@ async function runGrading(item: Assignment) {
   try { const response = await api.post<ApiResponse<{ ruleGraded: number; aiQueued: number; skipped: number }>>(`/grading/assignments/${item.id}/run`); const result = response.data.data; ElMessage.success(`规则评分 ${result.ruleGraded} 条，AI 待处理 ${result.aiQueued} 条`) }
   catch (reason) { ElMessage.error(errorMessage(reason)) } finally { busyId.value = undefined }
 }
+/**
+ * 导出这次作业的匿名评测样本。
+ *
+ * 三条提示是分开的，不能合并成"导出成功"：导出 0 条时没有文件内容可核对，
+ * 有样本被剔除时文件本身看不出少了行——这两种情况都必须让教师看见，
+ * 否则会把导出条数当成全量样本量。
+ */
+async function exportEvaluation(item: Assignment) {
+  busyId.value = item.id
+  try {
+    const result = await downloadEvaluationCases(item.id)
+    if (result.exported === 0) ElMessage.warning('这份作业还没有已复核的 AI 样本')
+    else ElMessage.success(`已导出 ${result.exported} 条评测样本`)
+    if (result.skippedMissingAiError > 0) ElMessage.warning(`另有 ${result.skippedMissingAiError} 条历史样本因缺少模型原始错因未导出，样本量请以导出结果为准`)
+  }
+  catch (reason) { ElMessage.error(errorMessage(reason)) } finally { busyId.value = undefined }
+}
 onMounted(() => load().catch(reason => ElMessage.error(errorMessage(reason))))
 </script>
 
@@ -41,7 +58,7 @@ onMounted(() => load().catch(reason => ElMessage.error(errorMessage(reason))))
     <header class="page-heading"><div><p class="kicker">作业流转</p><h1>作业管理</h1><p>建立题目清单，导入结构化答案，然后启动可追溯评分。</p></div><button class="primary-button" :disabled="!ready" @click="dialog = true">创建作业</button></header>
     <div v-if="!ready" class="notice-strip"><b>创建前准备：</b>至少需要一个班级和一道题目。</div>
     <div v-if="assignments.length === 0" class="state-panel empty-invite"><b>还没有作业</b><p>准备好班级和题库后，即可创建第一份作业。</p></div>
-    <div v-else class="assignment-board"><article v-for="item in assignments" :key="item.id" class="paper-card assignment-card"><div class="assignment-card-head"><div><span class="status-pill" :class="item.status === 'DRAFT' ? '' : 'good'">{{ item.status === 'DRAFT' ? '草稿' : '已录入答案' }}</span><h2>{{ item.title }}</h2><p>{{ classes.find(value => value.id === item.classId)?.name || `班级 ${item.classId}` }} · {{ item.questionIds.length }} 道题</p></div><div class="assignment-number">#{{ item.id }}</div></div><div class="import-zone"><label><span>答案工作簿</span><input type="file" accept=".xlsx" @change="chooseFile($event, item.id)"><b>{{ fileByAssignment[item.id]?.name || '选择 .xlsx 文件' }}</b></label><button class="secondary-button" :disabled="busyId === item.id" @click="importAnswers(item)">导入并校验</button></div><div class="assignment-actions"><button class="primary-button" :disabled="busyId === item.id" @click="runGrading(item)">启动辅助评分</button><RouterLink to="/review">进入教师复核 →</RouterLink></div></article></div>
+    <div v-else class="assignment-board"><article v-for="item in assignments" :key="item.id" class="paper-card assignment-card"><div class="assignment-card-head"><div><span class="status-pill" :class="item.status === 'DRAFT' ? '' : 'good'">{{ item.status === 'DRAFT' ? '草稿' : '已录入答案' }}</span><h2>{{ item.title }}</h2><p>{{ classes.find(value => value.id === item.classId)?.name || `班级 ${item.classId}` }} · {{ item.questionIds.length }} 道题</p></div><div class="assignment-number">#{{ item.id }}</div></div><div class="import-zone"><label><span>答案工作簿</span><input type="file" accept=".xlsx" @change="chooseFile($event, item.id)"><b>{{ fileByAssignment[item.id]?.name || '选择 .xlsx 文件' }}</b></label><button class="secondary-button" :disabled="busyId === item.id" @click="importAnswers(item)">导入并校验</button></div><div class="assignment-actions"><button class="primary-button" :disabled="busyId === item.id" @click="runGrading(item)">启动辅助评分</button><button class="secondary-button" :disabled="busyId === item.id" @click="exportEvaluation(item)">导出评测样本</button><RouterLink to="/review">进入教师复核 →</RouterLink></div></article></div>
     <el-dialog v-model="dialog" title="创建作业" width="600px"><el-form label-position="top"><el-form-item label="作业名称"><el-input v-model="form.title" placeholder="如 一元一次方程巩固作业" /></el-form-item><el-form-item label="班级"><el-select v-model="form.classId"><el-option v-for="item in classes" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item><el-form-item label="选择题目"><el-select v-model="form.questionIds" multiple filterable><el-option v-for="item in questions" :key="item.id" :label="`${item.questionCode} · ${item.content}`" :value="item.id" /></el-select></el-form-item></el-form><template #footer><button class="secondary-button" @click="dialog = false">取消</button><button class="primary-button" @click="create">创建作业</button></template></el-dialog>
   </section>
 </template>

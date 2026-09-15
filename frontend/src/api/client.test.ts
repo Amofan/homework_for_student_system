@@ -1,7 +1,7 @@
 import { AxiosError, type AxiosAdapter, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { api, docxFilename, downloadExerciseDocx, errorMessage, setUnauthorizedHandler, TOKEN_STORAGE_KEY } from './client'
+import { api, dispositionFilename, downloadEvaluationCases, downloadExerciseDocx, errorMessage, setUnauthorizedHandler, TOKEN_STORAGE_KEY } from './client'
 
 const originalAdapter = api.defaults.adapter
 
@@ -153,9 +153,72 @@ describe('downloadExerciseDocx', () => {
     await expect(downloadExerciseDocx(8)).resolves.toEqual([])
   })
 
-  it('服务端没给文件名时退回本地拼装', () => {
-    expect(docxFilename(7, undefined)).toBe('exercise-7.docx')
-    expect(docxFilename(7, 'attachment')).toBe('exercise-7.docx')
-    expect(docxFilename(7, 'attachment; filename="custom.docx"')).toBe('custom.docx')
+  it('服务端没给文件名时退回调用方给的兜底名', () => {
+    expect(dispositionFilename(undefined, 'exercise-7.docx')).toBe('exercise-7.docx')
+    expect(dispositionFilename('attachment', 'exercise-7.docx')).toBe('exercise-7.docx')
+    expect(dispositionFilename('attachment; filename="custom.docx"', 'exercise-7.docx'))
+      .toBe('custom.docx')
+  })
+})
+
+describe('downloadEvaluationCases', () => {
+  let saved: { href: string; download: string }[] = []
+
+  beforeEach(() => {
+    saved = []
+    localStorage.clear()
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'token-abc')
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:mock'), revokeObjectURL: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push({ href: this.href, download: this.download })
+    })
+  })
+
+  afterEach(() => {
+    api.defaults.adapter = originalAdapter
+    vi.restoreAllMocks()
+  })
+
+  it('取回 CSV 并把服务端的三个计数一起返回', async () => {
+    let authorization: unknown
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+      authorization = config.headers.Authorization
+      return {
+        data: new Blob(['case_id']),
+        status: 200,
+        statusText: '200',
+        headers: {
+          'content-disposition': 'attachment; filename="grading-cases-501.csv"',
+          'x-evaluation-reviewed': '12',
+          'x-evaluation-exported': '10',
+          'x-evaluation-skipped-missing-ai-error': '2',
+        },
+        config,
+      } as AxiosResponse
+    }
+
+    await expect(downloadEvaluationCases(501)).resolves.toEqual({
+      reviewed: 12, exported: 10, skippedMissingAiError: 2,
+    })
+
+    // 令牌仍只走 Authorization 头，绝不拼进 URL
+    expect(authorization).toBe('Bearer token-abc')
+    expect(saved).toEqual([{ href: 'blob:mock', download: 'grading-cases-501.csv' }])
+  })
+
+  it('响应头缺失时计数按 0 而不是 NaN', async () => {
+    // 反向代理可能吃掉自定义响应头；读到 NaN 会让页面显示"已导出 NaN 条"
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) => ({
+      data: new Blob(['case_id']),
+      status: 200,
+      statusText: '200',
+      headers: {},
+      config,
+    } as AxiosResponse)
+
+    await expect(downloadEvaluationCases(501)).resolves.toEqual({
+      reviewed: 0, exported: 0, skippedMissingAiError: 0,
+    })
+    expect(saved).toEqual([{ href: 'blob:mock', download: 'grading-cases-501.csv' }])
   })
 })

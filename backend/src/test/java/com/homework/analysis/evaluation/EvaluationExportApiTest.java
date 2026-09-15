@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -134,7 +135,20 @@ class EvaluationExportApiTest {
         // V7 之前生成的结果没有 ai_error_type，教师复核已经覆盖了 error_type，原判无法还原
         jdbc.update("update grading_result set ai_error_type = null where id = 702");
 
-        String[] lines = export(501).split("\n");
+        String body = mvc.perform(get("/api/evaluation/assignments/501/grading-cases.csv")
+                .header("Authorization", bearer()))
+            .andExpect(status().isOk())
+            // 剔除了几条必须让页面看得见：只写服务端日志的话，教师导出后无从知道少了几条
+            .andExpect(header().string("X-Evaluation-Reviewed", "3"))
+            .andExpect(header().string("X-Evaluation-Exported", "2"))
+            .andExpect(header().string("X-Evaluation-Skipped-Missing-Ai-Error", "1"))
+            // 跨域部署时浏览器默认不把自定义响应头交给前端脚本，必须显式暴露
+            .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
+                "Content-Disposition, X-Evaluation-Reviewed, X-Evaluation-Exported, "
+                    + "X-Evaluation-Skipped-Missing-Ai-Error"))
+            .andReturn().getResponse().getContentAsString();
+
+        String[] lines = body.split("\n");
 
         assertThat(lines).hasSize(3);
         assertThat(lines[1]).startsWith("answer-611,");

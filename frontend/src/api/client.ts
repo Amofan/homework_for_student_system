@@ -78,10 +78,34 @@ export async function approveExercise(exerciseId: number): Promise<ExerciseSet> 
   return response.data.data
 }
 
-/** 优先采用服务端 Content-Disposition 里的文件名，取不到时退回本地拼装。 */
-export function docxFilename(exerciseId: number, disposition: unknown): string {
+/**
+ * 优先采用服务端 Content-Disposition 里的文件名，取不到时退回调用方给的兜底名。
+ * 两种下载共用：文件名规则只该写一份，否则总有一个接口会漏掉转义或退回逻辑。
+ */
+export function dispositionFilename(disposition: unknown, fallback: string): string {
   const matched = typeof disposition === 'string' ? /filename="([^"]+)"/.exec(disposition) : null
-  return matched?.[1] ?? `exercise-${exerciseId}.docx`
+  return matched?.[1] ?? fallback
+}
+
+/**
+ * 把 Blob 存成文件。
+ *
+ * <p>对象 URL 必须在 finally 里撤销：不撤销会一直占着那份内存到页面关闭，
+ * 连续导出几十次练习单就能看出来。撤销放在 click 之后是安全的，
+ * 浏览器这时已经接过了下载。
+ */
+function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  try {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 /**
@@ -95,19 +119,37 @@ export function docxFilename(exerciseId: number, disposition: unknown): string {
  */
 export async function downloadExerciseDocx(exerciseId: number): Promise<string[]> {
   const response = await api.get<Blob>(`/exercises/${exerciseId}/export.docx`, { responseType: 'blob' })
-  const url = URL.createObjectURL(response.data)
-  try {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = docxFilename(exerciseId, response.headers['content-disposition'])
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-  } finally {
-    URL.revokeObjectURL(url)
-  }
+  saveBlob(response.data, dispositionFilename(
+    response.headers['content-disposition'], `exercise-${exerciseId}.docx`,
+  ))
   const fallback = response.headers['x-formula-fallback']
   return typeof fallback === 'string'
     ? fallback.split(',').map(code => code.trim()).filter(Boolean)
     : []
+}
+
+/** 一次评测导出的完整性计数，用于告诉教师"导出了几条、又剔除了几条"。 */
+export interface EvaluationDownloadSummary {
+  reviewed: number
+  exported: number
+  skippedMissingAiError: number
+}
+
+/**
+ * 导出某次作业的匿名评测样本，返回服务端给出的三个计数。
+ *
+ * <p>计数必须跟着文件一起回到页面：CSV 本身看不出少了样本，
+ * 只写服务端日志的话教师会把导出条数当成全量样本量，论文的样本数就交代不清。
+ */
+export async function downloadEvaluationCases(assignmentId: number): Promise<EvaluationDownloadSummary> {
+  const response = await api.get<Blob>(`/evaluation/assignments/${assignmentId}/grading-cases.csv`,
+    { responseType: 'blob' })
+  saveBlob(response.data, dispositionFilename(
+    response.headers['content-disposition'], `grading-cases-${assignmentId}.csv`,
+  ))
+  return {
+    reviewed: Number(response.headers['x-evaluation-reviewed'] ?? 0),
+    exported: Number(response.headers['x-evaluation-exported'] ?? 0),
+    skippedMissingAiError: Number(response.headers['x-evaluation-skipped-missing-ai-error'] ?? 0),
+  }
 }

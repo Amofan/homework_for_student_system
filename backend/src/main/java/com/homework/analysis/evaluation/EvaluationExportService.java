@@ -29,28 +29,30 @@ public class EvaluationExportService {
      * 规则评分和待复核结果都提供不了这一对值。耗时与令牌取自各自的原始记录，
      * 缺就是缺——不填 0，否则省时比例会被算得虚高。
      */
-    public String exportGradingCases(long teacherId, long assignmentId) {
+    public EvaluationExport exportGradingCases(long teacherId, long assignmentId) {
         assignments.requireOwned(teacherId, assignmentId);
         List<GradingCaseRow> cases = new ArrayList<>();
         int skipped = 0;
-        for (ReviewedCase reviewed : reviewedCases(assignmentId)) {
-            if (reviewed.aiErrorType() == null) {
+        List<ReviewedCase> reviewed = reviewedCases(assignmentId);
+        for (ReviewedCase caseRow : reviewed) {
+            if (caseRow.aiErrorType() == null) {
                 // 模型原始错因缺失：这行记录生成于 V7 之前，教师复核已经覆盖了 error_type，
                 // 模型当初判成什么再也查不回来。评测脚本要求 ai_error_type 非空，
                 // 与其塞一个编造的标签，不如剔除并让调用方看得见剔了多少条。
                 skipped++;
                 continue;
             }
-            cases.add(new GradingCaseRow("answer-" + reviewed.answerId(), reviewed.totalScore(),
-                reviewed.teacherScore(), reviewed.aiScore(), reviewed.teacherErrorType(),
-                reviewed.aiErrorType(), reviewed.teacherModified(), reviewed.teacherSeconds(),
-                reviewed.aiSeconds(), reviewed.inputTokens(), reviewed.outputTokens(),
-                reviewed.reviewDecision(), reviewed.modelName(), reviewed.promptVersion()));
+            cases.add(new GradingCaseRow("answer-" + caseRow.answerId(), caseRow.totalScore(),
+                caseRow.teacherScore(), caseRow.aiScore(), caseRow.teacherErrorType(),
+                caseRow.aiErrorType(), caseRow.teacherModified(), caseRow.teacherSeconds(),
+                caseRow.aiSeconds(), caseRow.inputTokens(), caseRow.outputTokens(),
+                caseRow.reviewDecision(), caseRow.modelName(), caseRow.promptVersion()));
         }
         if (skipped > 0) {
+            // 日志留着便于服务端排查，但页面不再只能靠它——计数会随响应头返回
             log.warn("评测导出跳过了缺少模型原始错因的样本：assignmentId={} 跳过 {} 条", assignmentId, skipped);
         }
-        return GradingCaseCsv.render(cases);
+        return new EvaluationExport(GradingCaseCsv.render(cases), reviewed.size(), cases.size(), skipped);
     }
 
     private List<ReviewedCase> reviewedCases(long assignmentId) {
