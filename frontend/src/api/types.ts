@@ -1,3 +1,5 @@
+import type { ErrorType } from './errorTypes'
+
 export interface TeacherProfile { teacherId: number; displayName: string; schoolName?: string }
 export interface Classroom { id: number; classCode: string; name: string; grade?: number; semester?: string; studentCount: number }
 export interface Student { id: number; classId: number; studentNo: string; name: string }
@@ -13,7 +15,7 @@ export interface Assignment { id: number; classId: number; title: string; status
 export interface ReviewQueueItem {
   resultId: number; answerId: number; studentNo: string; studentName: string; questionCode: string
   questionContent: string; answerContent: string; source: 'RULE' | 'AI'; suggestedScore: number; totalScore: number
-  errorType: string; teacherExplanation?: string; studentFeedback?: string; scoreDetails: string
+  errorType: ErrorType; teacherExplanation?: string; studentFeedback?: string; scoreDetails: string
 }
 export interface KnowledgeMastery {
   knowledgePointId: number; code: string; name: string; earnedScore: number; possibleScore: number; masteryRatio: number; answerCount: number

@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { api, errorMessage, type ApiResponse } from '../api/client'
-import { errorTypeLabel } from '../api/errorTypes'
+import { ERROR_TYPE_OPTIONS, errorTypeLabel, type ErrorType } from '../api/errorTypes'
 import type { Assignment, ReviewQueueItem } from '../api/types'
 import MathText from '../math/MathText.vue'
 
@@ -16,8 +16,12 @@ const loading = ref(false)
 // 用 performance.now() 而不是 Date.now()：它是单调时钟，系统对时或夏令时回拨
 // 都不会算出负数耗时。
 const startedAt = ref<number>()
-const form = reactive({ decision: 'ACCEPT', finalScore: undefined as number | undefined, errorType: '', feedback: '', reason: '' })
+// 最终错因只接受固定编码：后端也按同一集合校验，自由文本会让论文的错因口径失控。
+// 初值保留空串，好让"修改/驳回时还没选错因"这个状态可判定。
+const form = reactive({ decision: 'ACCEPT', finalScore: undefined as number | undefined, errorType: '' as ErrorType | '', feedback: '', reason: '' })
 const currentIndex = computed(() => selected.value ? queue.value.findIndex(item => item.resultId === selected.value?.resultId) + 1 : 0)
+/** 采纳沿用模型建议，无需再选；修改或驳回必须由教师明确指定最终错因。 */
+const submitBlocked = computed(() => form.decision !== 'ACCEPT' && !form.errorType)
 async function loadQueue() {
   if (!assignmentId.value) { queue.value = []; selected.value = undefined; return }
   loading.value = true
@@ -51,7 +55,7 @@ onMounted(async () => { try { const response = await api.get<ApiResponse<Assignm
         <div class="answer-section"><span>题目 {{ selected.questionCode }}</span><p class="formula-text"><MathText :text="selected.questionContent" /></p></div>
         <div class="student-answer"><span>学生作答</span><p><MathText :text="selected.answerContent || '（未作答）'" /></p></div>
         <div class="suggestion-block"><div><span>建议得分</span><strong>{{ selected.suggestedScore }}<small>/ {{ selected.totalScore }}</small></strong></div><div><span>建议错因</span><b>{{ errorTypeLabel(selected.errorType) }}</b><p><MathText :text="selected.teacherExplanation ?? ''" /></p></div></div>
-        <div class="review-form"><div class="decision-tabs"><button v-for="choice in [['ACCEPT','采纳'],['MODIFY','修改'],['REJECT','驳回并人工评分']]" :key="choice[0]" :class="{ active: form.decision === choice[0] }" @click="form.decision = choice[0]">{{ choice[1] }}</button></div><div class="form-grid"><label>最终得分<el-input-number v-model="form.finalScore" :min="0" :max="selected.totalScore" /></label><label>最终错因<el-input v-model="form.errorType" /></label></div><label>给学生的反馈<el-input v-model="form.feedback" type="textarea" :rows="2" /></label><label v-if="form.decision !== 'ACCEPT'">修改原因<el-input v-model="form.reason" placeholder="修改或驳回时必填" /></label><button class="primary-button confirm-review" @click="confirm">确认本条复核</button></div>
+        <div class="review-form"><div class="decision-tabs"><button v-for="choice in [['ACCEPT','采纳'],['MODIFY','修改'],['REJECT','驳回并人工评分']]" :key="choice[0]" :class="{ active: form.decision === choice[0] }" @click="form.decision = choice[0]">{{ choice[1] }}</button></div><div class="form-grid"><label>最终得分<el-input-number v-model="form.finalScore" :min="0" :max="selected.totalScore" /></label><label>最终错因<el-select v-model="form.errorType" placeholder="选择最终错因" class="error-type-select"><el-option v-for="option in ERROR_TYPE_OPTIONS" :key="option.value" :label="option.label" :value="option.value" /></el-select></label></div><label>给学生的反馈<el-input v-model="form.feedback" type="textarea" :rows="2" /></label><label v-if="form.decision !== 'ACCEPT'">修改原因<el-input v-model="form.reason" placeholder="修改或驳回时必填" /></label><button class="primary-button confirm-review" :disabled="submitBlocked" @click="confirm">确认本条复核</button></div>
       </article>
     </div>
   </section>

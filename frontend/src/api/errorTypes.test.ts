@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { errorTypeLabel, KNOWN_ERROR_TYPES } from './errorTypes'
+import { ERROR_TYPE_OPTIONS, errorTypeLabel, KNOWN_ERROR_TYPES } from './errorTypes'
 
 /**
  * 后端能产出的错因标签全集：模型那套 6 个（AiGradingTaskWorker.ERROR_TYPES）
@@ -34,5 +34,19 @@ describe('错因标签', () => {
 
   it('认不出的取值原样返回，不静默丢信息', () => {
     expect(errorTypeLabel('SOMETHING_NEW')).toBe('SOMETHING_NEW')
+  })
+
+  it('复核下拉包含且只包含七个后端取值', () => {
+    // 顺序与后端 ErrorType 声明一致，教师看到的是稳定顺序而不是随机的集合迭代顺序
+    expect(ERROR_TYPE_OPTIONS.map(option => option.value)).toEqual(BACKEND_ERROR_TYPES)
+  })
+
+  it('每个选项都带中文标签且编码不重复', () => {
+    const values = ERROR_TYPE_OPTIONS.map(option => option.value)
+    expect(new Set(values).size).toBe(values.length)
+    for (const option of ERROR_TYPE_OPTIONS) {
+      expect(option.label).toMatch(/[一-龥]/)
+      expect(option.label).not.toBe(option.value)
+    }
   })
 })
