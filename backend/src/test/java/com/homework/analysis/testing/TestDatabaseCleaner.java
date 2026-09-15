@@ -15,6 +15,7 @@ public final class TestDatabaseCleaner {
 
     /** 子表在前、父表在后，顺序与 Flyway 迁移中声明外键依赖的方向相反。 */
     private static final String[] TABLES = {
+        "exercise_item", "exercise_set",
         "grading_audit", "teacher_review", "grading_result", "ai_grading_task",
         "student_answer", "submission", "assignment_question", "assignment",
         "rubric_item", "question_knowledge_point", "question", "knowledge_point",

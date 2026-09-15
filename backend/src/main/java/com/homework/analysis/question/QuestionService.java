@@ -27,7 +27,7 @@ public class QuestionService {
 
     public List<QuestionView> list(long teacherId) {
         return jdbc.sql("""
-                select id, question_code, type, content, standard_answer, total_score,
+                select id, question_code, type, content, standard_answer, total_score, difficulty,
                        primary_knowledge_point_id, accepted_answers
                 from question where teacher_id = :teacherId and deleted_at is null order by id desc
                 """)
@@ -38,7 +38,7 @@ public class QuestionService {
 
     public QuestionView requireOwned(long teacherId, long questionId) {
         return jdbc.sql("""
-                select id, question_code, type, content, standard_answer, total_score,
+                select id, question_code, type, content, standard_answer, total_score, difficulty,
                        primary_knowledge_point_id, accepted_answers
                 from question where id = :id and teacher_id = :teacherId and deleted_at is null
                 """)
@@ -56,9 +56,9 @@ public class QuestionService {
         try {
             jdbc.sql("""
                     insert into question(teacher_id, question_code, type, content, standard_answer,
-                                         total_score, primary_knowledge_point_id, accepted_answers)
+                                         total_score, difficulty, primary_knowledge_point_id, accepted_answers)
                     values (:teacherId, :code, :type, :content, :standardAnswer,
-                            :totalScore, :primaryKnowledgePointId, :acceptedAnswers)
+                            :totalScore, :difficulty, :primaryKnowledgePointId, :acceptedAnswers)
                     """)
                 .param("teacherId", teacherId)
                 .param("code", command.questionCode().trim())
@@ -66,6 +66,7 @@ public class QuestionService {
                 .param("content", command.content().trim())
                 .param("standardAnswer", command.standardAnswer())
                 .param("totalScore", command.totalScore())
+                .param("difficulty", difficultyOf(command).name())
                 .param("primaryKnowledgePointId", command.primaryKnowledgePointId())
                 .param("acceptedAnswers", answersJson)
                 .update();
@@ -151,6 +152,7 @@ public class QuestionService {
         return new QuestionView(questionId, rs.getString("question_code"),
             QuestionType.valueOf(rs.getString("type")), rs.getString("content"),
             rs.getString("standard_answer"), rs.getInt("total_score"),
+            QuestionDifficulty.valueOf(rs.getString("difficulty")),
             rs.getLong("primary_knowledge_point_id"), secondary,
             readAnswers(rs.getString("accepted_answers")), rubrics);
     }
@@ -169,6 +171,11 @@ public class QuestionService {
         } catch (JacksonException exception) {
             throw new IllegalStateException("题目答案数据损坏", exception);
         }
+    }
+
+    /** 未指定难度时按中等处理，避免历史请求因为缺少新字段而被拒绝。 */
+    private static QuestionDifficulty difficultyOf(QuestionCommand command) {
+        return command.difficulty() == null ? QuestionDifficulty.MEDIUM : command.difficulty();
     }
 
     private static List<Long> safeSecondary(QuestionCommand command) {

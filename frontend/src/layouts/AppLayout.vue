@@ -17,6 +17,7 @@ const nav = [
   { to: '/assignments', mark: '作', label: '作业管理', caption: '导入与启动评分' },
   { to: '/review', mark: '阅', label: '教师复核', caption: '确认正式成绩' },
   { to: '/analytics', mark: '析', label: '学情分析', caption: '知识点画像' },
+  { to: '/exercises', mark: '练', label: '分层练习', caption: '生成与导出' },
 ]
 
 const today = computed(() => new Intl.DateTimeFormat('zh-CN', {

@@ -9,6 +9,7 @@ public record QuestionView(
     String content,
     String standardAnswer,
     int totalScore,
+    QuestionDifficulty difficulty,
     long primaryKnowledgePointId,
     List<Long> secondaryKnowledgePointIds,
     List<String> acceptedAnswers,

@@ -14,6 +14,8 @@ public record QuestionCommand(
     @NotBlank @Size(max = 4000) String content,
     @Size(max = 4000) String standardAnswer,
     @Min(1) int totalScore,
+    // 允许为空：为空时按 MEDIUM 保存，使改动前已存在的请求继续可用
+    QuestionDifficulty difficulty,
     long primaryKnowledgePointId,
     List<Long> secondaryKnowledgePointIds,
     List<@NotBlank @Size(max = 256) String> acceptedAnswers,

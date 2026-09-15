@@ -1,7 +1,7 @@
 import { AxiosError, type AxiosAdapter, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { api, errorMessage, setUnauthorizedHandler, TOKEN_STORAGE_KEY } from './client'
+import { api, docxFilename, downloadExerciseDocx, errorMessage, setUnauthorizedHandler, TOKEN_STORAGE_KEY } from './client'
 
 const originalAdapter = api.defaults.adapter
 
@@ -92,5 +92,54 @@ describe('errorMessage', () => {
   it('普通异常回退到自身消息，非 Error 时给出兜底文案', () => {
     expect(errorMessage(new Error('导入文件格式不正确'))).toBe('导入文件格式不正确')
     expect(errorMessage('unexpected')).toBe('操作未完成，请稍后重试。')
+  })
+})
+
+describe('downloadExerciseDocx', () => {
+  /** 记录被点击的下载链接；jsdom 不会真的下载，只能看链接长什么样。 */
+  let saved: { href: string; download: string }[] = []
+
+  beforeEach(() => {
+    saved = []
+    localStorage.clear()
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'token-abc')
+    // jsdom 没有实现 createObjectURL；补上桩函数，否则下载路径无从验证
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:mock'), revokeObjectURL: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push({ href: this.href, download: this.download })
+    })
+  })
+
+  afterEach(() => {
+    api.defaults.adapter = originalAdapter
+    vi.restoreAllMocks()
+  })
+
+  it('带令牌以 Blob 方式取回文档，并按服务端给的文件名保存', async () => {
+    let authorization: unknown
+    let responseType: unknown
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+      authorization = config.headers.Authorization
+      responseType = config.responseType
+      return {
+        data: new Blob(['PK']),
+        status: 200,
+        statusText: '200',
+        headers: { 'content-disposition': 'attachment; filename="exercise-7.docx"' },
+        config,
+      } as AxiosResponse
+    }
+
+    await downloadExerciseDocx(7)
+
+    expect(authorization).toBe('Bearer token-abc')
+    expect(responseType).toBe('blob')
+    expect(saved).toEqual([{ href: 'blob:mock', download: 'exercise-7.docx' }])
+  })
+
+  it('服务端没给文件名时退回本地拼装', () => {
+    expect(docxFilename(7, undefined)).toBe('exercise-7.docx')
+    expect(docxFilename(7, 'attachment')).toBe('exercise-7.docx')
+    expect(docxFilename(7, 'attachment; filename="custom.docx"')).toBe('custom.docx')
   })
 })

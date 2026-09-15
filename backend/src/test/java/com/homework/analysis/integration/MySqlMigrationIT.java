@@ -37,7 +37,7 @@ class MySqlMigrationIT {
         "app_user", "teacher", "school_class", "student", "knowledge_point",
         "question", "question_knowledge_point", "rubric_item", "assignment",
         "assignment_question", "submission", "student_answer", "ai_grading_task",
-        "grading_result", "teacher_review", "grading_audit");
+        "grading_result", "teacher_review", "grading_audit", "exercise_set", "exercise_item");
 
     private static final Pattern VERSION = Pattern.compile("^V(\\d+)__.*\\.sql$");
 

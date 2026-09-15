@@ -1,5 +1,7 @@
 import axios, { type AxiosError } from 'axios'
 
+import type { ExerciseSet } from './types'
+
 export interface ApiError {
   code: string
   message: string
@@ -57,4 +59,48 @@ export function errorMessage(error: unknown): string {
     return error.response?.data?.error?.message ?? '服务暂时不可用，请检查后端是否已启动。'
   }
   return error instanceof Error ? error.message : '操作未完成，请稍后重试。'
+}
+
+export async function listExercises(classId: number): Promise<ExerciseSet[]> {
+  const response = await api.get<ApiResponse<ExerciseSet[]>>('/exercises', { params: { classId } })
+  return response.data.data
+}
+
+export async function generateExercise(
+  command: { classId: number; sourceAssignmentId: number; title?: string },
+): Promise<ExerciseSet> {
+  const response = await api.post<ApiResponse<ExerciseSet>>('/exercises', command)
+  return response.data.data
+}
+
+export async function approveExercise(exerciseId: number): Promise<ExerciseSet> {
+  const response = await api.post<ApiResponse<ExerciseSet>>(`/exercises/${exerciseId}/approve`)
+  return response.data.data
+}
+
+/** 优先采用服务端 Content-Disposition 里的文件名，取不到时退回本地拼装。 */
+export function docxFilename(exerciseId: number, disposition: unknown): string {
+  const matched = typeof disposition === 'string' ? /filename="([^"]+)"/.exec(disposition) : null
+  return matched?.[1] ?? `exercise-${exerciseId}.docx`
+}
+
+/**
+ * 下载已确认的练习单。
+ *
+ * <p>必须走 axios 带上 Authorization 头再手动保存 Blob：把令牌拼进 URL
+ * 会让它留在浏览器历史、代理日志和服务器访问日志里，等于泄露凭据。
+ */
+export async function downloadExerciseDocx(exerciseId: number): Promise<void> {
+  const response = await api.get<Blob>(`/exercises/${exerciseId}/export.docx`, { responseType: 'blob' })
+  const url = URL.createObjectURL(response.data)
+  try {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = docxFilename(exerciseId, response.headers['content-disposition'])
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }

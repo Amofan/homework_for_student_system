@@ -3,7 +3,9 @@ package com.homework.analysis.assignment;
 import com.homework.analysis.classroom.ClassroomService;
 import com.homework.analysis.question.QuestionService;
 import com.homework.analysis.shared.error.DomainException;
+import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,11 +16,14 @@ import java.util.List;
 @Service
 public class AssignmentService {
     private final JdbcClient jdbc;
+    private final JdbcTemplate jdbcTemplate;
     private final ClassroomService classrooms;
     private final QuestionService questions;
 
-    AssignmentService(JdbcClient jdbc, ClassroomService classrooms, QuestionService questions) {
+    AssignmentService(JdbcClient jdbc, JdbcTemplate jdbcTemplate, ClassroomService classrooms,
+                      QuestionService questions) {
         this.jdbc = jdbc;
+        this.jdbcTemplate = jdbcTemplate;
         this.classrooms = classrooms;
         this.questions = questions;
     }
@@ -54,16 +59,12 @@ public class AssignmentService {
             throw new DomainException("QUESTION_DUPLICATE", "作业中的题目不能重复");
         }
         command.questionIds().forEach(id -> questions.requireOwned(teacherId, id));
-        jdbc.sql("""
+        // 主键由驱动直接回传：再查一次 max(id) 是普通一致性读，同一教师并发建作业时
+        // 会读到对方刚提交的行，两次请求拿到同一个 id，题目明细挂到别人的作业上。
+        long assignmentId = GeneratedKeys.insert(jdbcTemplate, """
                 insert into assignment(teacher_id, class_id, title, status)
-                values (:teacherId, :classId, :title, 'DRAFT')
-                """)
-            .param("teacherId", teacherId)
-            .param("classId", command.classId())
-            .param("title", command.title().trim())
-            .update();
-        long assignmentId = jdbc.sql("select max(id) from assignment where teacher_id = :teacherId")
-            .param("teacherId", teacherId).query(Long.class).single();
+                values (?, ?, ?, 'DRAFT')
+                """, teacherId, command.classId(), command.title().trim());
         for (int index = 0; index < command.questionIds().size(); index++) {
             jdbc.sql("""
                     insert into assignment_question(assignment_id, question_id, question_order)
