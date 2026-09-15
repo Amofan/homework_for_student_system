@@ -1,6 +1,7 @@
 package com.homework.analysis.question;
 
 import com.homework.analysis.shared.error.DomainException;
+import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -53,13 +54,14 @@ public class QuestionService {
     public QuestionView create(long teacherId, QuestionCommand command) {
         validate(teacherId, command);
         String answersJson = writeAnswers(command.acceptedAnswers());
+        long questionId;
         try {
-            jdbc.sql("""
+            questionId = GeneratedKeys.insert(jdbc, """
                     insert into question(teacher_id, question_code, type, content, standard_answer,
                                          total_score, difficulty, primary_knowledge_point_id, accepted_answers)
                     values (:teacherId, :code, :type, :content, :standardAnswer,
                             :totalScore, :difficulty, :primaryKnowledgePointId, :acceptedAnswers)
-                    """)
+                    """, statement -> statement
                 .param("teacherId", teacherId)
                 .param("code", command.questionCode().trim())
                 .param("type", command.type().name())
@@ -68,18 +70,10 @@ public class QuestionService {
                 .param("totalScore", command.totalScore())
                 .param("difficulty", difficultyOf(command).name())
                 .param("primaryKnowledgePointId", command.primaryKnowledgePointId())
-                .param("acceptedAnswers", answersJson)
-                .update();
+                .param("acceptedAnswers", answersJson));
         } catch (DataIntegrityViolationException exception) {
             throw new DomainException("QUESTION_CODE_DUPLICATE", "题目编码已存在", HttpStatus.CONFLICT);
         }
-        long questionId = jdbc.sql("""
-                select id from question where teacher_id = :teacherId and question_code = :code
-                """)
-            .param("teacherId", teacherId)
-            .param("code", command.questionCode().trim())
-            .query(Long.class)
-            .single();
         linkKnowledgePoints(questionId, command);
         insertRubrics(questionId, safeRubrics(command));
         return requireOwned(teacherId, questionId);

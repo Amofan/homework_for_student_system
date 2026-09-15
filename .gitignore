@@ -12,3 +12,10 @@ work/
 *.log
 .DS_Store
 Thumbs.db
+
+# 评测产出：论文引用的最终匿名数据与结果另行归档，不进仓库
+evaluation/output/
+
+# Python
+__pycache__/
+*.py[cod]

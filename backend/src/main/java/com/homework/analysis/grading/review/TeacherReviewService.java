@@ -2,6 +2,7 @@ package com.homework.analysis.grading.review;
 
 import com.homework.analysis.assignment.AssignmentService;
 import com.homework.analysis.shared.error.DomainException;
+import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -80,17 +81,14 @@ public class TeacherReviewService {
         if (finalScore < 0 || finalScore > result.totalScore()) {
             throw new DomainException("REVIEW_SCORE_OUT_OF_RANGE", "最终得分超出题目分值范围");
         }
-        jdbc.sql("""
+        long reviewId = GeneratedKeys.insert(jdbc, """
                 insert into teacher_review(result_id, teacher_id, decision, final_score,
                                            final_error_type, feedback, reason)
                 values (:resultId, :teacherId, :decision, :score, :errorType, :feedback, :reason)
-                """)
+                """, statement -> statement
             .param("resultId", resultId).param("teacherId", teacherId)
             .param("decision", command.decision().name()).param("score", finalScore)
-            .param("errorType", errorType).param("feedback", feedback).param("reason", command.reason())
-            .update();
-        long reviewId = jdbc.sql("select id from teacher_review where result_id = :resultId")
-            .param("resultId", resultId).query(Long.class).single();
+            .param("errorType", errorType).param("feedback", feedback).param("reason", command.reason()));
         jdbc.sql("""
                 update grading_result set confirmed_score = :score, error_type = :errorType,
                     student_feedback = :feedback, status = 'CONFIRMED', version = version + 1,

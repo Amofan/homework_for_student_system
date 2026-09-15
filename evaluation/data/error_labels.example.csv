@@ -1,0 +1,8 @@
+error_type,label_zh
+CORRECT,完全正确
+CALCULATION_ERROR,计算错误
+METHOD_ERROR,方法选择错误
+CONCEPT_ERROR,概念理解错误
+INCOMPLETE,解答不完整
+ANSWER_MISMATCH,答案与标准答案不符
+OTHER,其他错因

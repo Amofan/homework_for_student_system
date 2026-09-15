@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import * as echarts from 'echarts'
+// 只注册本页真正用到的图表能力：整包引入 echarts 会把所有图表类型都打进这个分包。
+// 下面这四项是按 setOption 里实际出现的配置挑的——option 里没有 title 也没有 tooltip，
+// 所以不注册 TitleComponent 和 TooltipComponent；注册用不到的部分只会白白撑大分包。
+import * as echarts from 'echarts/core'
+import { BarChart } from 'echarts/charts'
+import { GridComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
+echarts.use([BarChart, GridComponent, CanvasRenderer])
+
 import { api, errorMessage, type ApiResponse } from '../api/client'
+import { errorTypeLabel } from '../api/errorTypes'
 import type { Assignment, Classroom, ErrorRanking, KnowledgeMastery } from '../api/types'
 
 const classes = ref<Classroom[]>([])
@@ -14,7 +23,6 @@ const mastery = ref<KnowledgeMastery[]>([])
 const errors = ref<ErrorRanking[]>([])
 const chartElement = ref<HTMLDivElement>()
 let chart: echarts.ECharts | undefined
-const labelMap: Record<string, string> = { CALCULATION_ERROR: '计算错误', METHOD_ERROR: '方法错误', CONCEPT_ERROR: '概念错误', INCOMPLETE: '过程不完整', OTHER: '其他' }
 async function loadData() {
   if (!classId.value || !assignmentId.value) return
   try {
@@ -36,6 +44,6 @@ onBeforeUnmount(() => chart?.dispose())
   <section class="page">
     <header class="page-heading"><div><p class="kicker">教学证据</p><h1>学情分析</h1><p>只使用教师已确认的正式结果，查看班级知识点掌握情况。</p></div><div class="filter-pair"><el-select v-model="classId" placeholder="选择班级"><el-option v-for="item in classes" :key="item.id" :label="item.name" :value="item.id" /></el-select><el-select v-model="assignmentId" placeholder="选择作业"><el-option v-for="item in assignments.filter(value => !classId || value.classId === classId)" :key="item.id" :label="item.title" :value="item.id" /></el-select></div></header>
     <div v-if="!assignmentId" class="state-panel empty-invite"><b>请选择班级和作业</b><p>有已确认的复核结果后，画像会自动出现。</p></div>
-    <div v-else class="analytics-grid"><article class="paper-card mastery-chart-card"><div class="card-title"><div><span>掌握度 = 已确认得分 / 对应总分</span><h2>知识点掌握度</h2></div></div><div v-if="mastery.length === 0" class="empty-invite"><b>暂无已确认数据</b><p>请先完成教师复核。</p></div><div v-else ref="chartElement" class="mastery-chart"></div></article><article class="paper-card error-ranking"><div class="card-title"><div><span>确认后的错因</span><h2>高频问题</h2></div></div><div v-if="errors.length === 0" class="empty-invite compact"><p>暂无错误记录</p></div><div v-for="(item, index) in errors" :key="item.errorType" class="error-row"><i>{{ index + 1 }}</i><span><b>{{ labelMap[item.errorType] || item.errorType }}</b><small>{{ item.count }} 次</small></span><div><em :style="{ width: `${Math.min(100, item.count * 18)}%` }"></em></div></div></article></div>
+    <div v-else class="analytics-grid"><article class="paper-card mastery-chart-card"><div class="card-title"><div><span>掌握度 = 已确认得分 / 对应总分</span><h2>知识点掌握度</h2></div></div><div v-if="mastery.length === 0" class="empty-invite"><b>暂无已确认数据</b><p>请先完成教师复核。</p></div><div v-else ref="chartElement" class="mastery-chart"></div></article><article class="paper-card error-ranking"><div class="card-title"><div><span>确认后的错因</span><h2>高频问题</h2></div></div><div v-if="errors.length === 0" class="empty-invite compact"><p>暂无错误记录</p></div><div v-for="(item, index) in errors" :key="item.errorType" class="error-row"><i>{{ index + 1 }}</i><span><b>{{ errorTypeLabel(item.errorType) }}</b><small>{{ item.count }} 次</small></span><div><em :style="{ width: `${Math.min(100, item.count * 18)}%` }"></em></div></div></article></div>
   </section>
 </template>

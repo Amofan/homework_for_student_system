@@ -1,5 +1,6 @@
 package com.homework.analysis.classroom;
 
+import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -44,27 +45,17 @@ public class StudentRepository {
     }
 
     StudentView insert(long teacherId, long classId, StudentRequest request) {
-        jdbc.sql("""
+        long studentId = GeneratedKeys.insert(jdbc, """
                 insert into student(class_id, student_no, name)
                 select c.id, :studentNo, :name from school_class c
                 where c.id = :classId and c.teacher_id = :teacherId and c.deleted_at is null
-                """)
+                """, statement -> statement
             .param("studentNo", request.studentNo().trim())
             .param("name", request.name().trim())
             .param("classId", classId)
-            .param("teacherId", teacherId)
-            .update();
-        return jdbc.sql("""
-                select s.id, s.class_id, s.student_no, s.name
-                from student s join school_class c on c.id = s.class_id
-                where c.teacher_id = :teacherId and s.class_id = :classId
-                  and s.student_no = :studentNo and s.deleted_at is null
-                """)
-            .param("teacherId", teacherId)
-            .param("classId", classId)
-            .param("studentNo", request.studentNo().trim())
-            .query(StudentRepository::map)
-            .single();
+            .param("teacherId", teacherId));
+        return findOwned(teacherId, studentId).orElseThrow(
+            () -> new IllegalStateException("新建学生后未能读回该学生"));
     }
 
     int updateOwned(long teacherId, long studentId, StudentRequest request) {

@@ -3,6 +3,7 @@ package com.homework.analysis.assignment;
 import com.homework.analysis.shared.importing.ImportError;
 import com.homework.analysis.shared.importing.ImportResult;
 import com.homework.analysis.shared.importing.ParsedWorkbook;
+import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -91,15 +92,16 @@ public class SubmissionImportService {
     }
 
     private long findOrCreateSubmission(long assignmentId, long studentId) {
-        List<Long> existing = jdbc.sql("""
+        return jdbc.sql("""
                 select id from submission where assignment_id = :assignmentId and student_id = :studentId
                 """)
-            .param("assignmentId", assignmentId).param("studentId", studentId).query(Long.class).list();
-        if (!existing.isEmpty()) return existing.getFirst();
-        jdbc.sql("insert into submission(assignment_id, student_id, status) values (:assignmentId, :studentId, 'IMPORTED')")
-            .param("assignmentId", assignmentId).param("studentId", studentId).update();
-        return jdbc.sql("select id from submission where assignment_id = :assignmentId and student_id = :studentId")
-            .param("assignmentId", assignmentId).param("studentId", studentId).query(Long.class).single();
+            .param("assignmentId", assignmentId).param("studentId", studentId)
+            .query(Long.class).optional()
+            .orElseGet(() -> GeneratedKeys.insert(jdbc, """
+                insert into submission(assignment_id, student_id, status)
+                values (:assignmentId, :studentId, 'IMPORTED')
+                """, statement -> statement
+                .param("assignmentId", assignmentId).param("studentId", studentId)));
     }
 
     private static ImportError error(int row, String field, String code, String message) {

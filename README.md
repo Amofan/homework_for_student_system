@@ -17,6 +17,8 @@
 - 解答题大模型任务、结构化结果校验、有限重试和人工兜底状态；
 - 教师采纳、修改或驳回评分建议；
 - 只统计已确认结果的知识点掌握度与高频错因；
+- 基于已确认画像生成三级分层练习（基础巩固、方法纠错、综合提升）、教师确认并导出可打印 Word；
+- 论文离线评测脚本：按匿名样本计算评分误差、错因分类指标和预估节省时间；
 - 中文教师工作台、复核工作区、分析图表和移动端布局；
 - 不依赖 MySQL 或真实模型的本地演示模式。
 
@@ -24,7 +26,7 @@
 
 - 后端：Java 21、Spring Boot 4.1.1、Spring Security、Spring JDBC、Flyway、Apache POI；
 - 数据库：MySQL 8.4 LTS，自动化测试和演示模式使用 H2；
-- 前端：Vue 3、TypeScript、Vite、Element Plus、ECharts；
+- 前端：Vue 3、TypeScript、Vite、Element Plus（模板按需导入）、ECharts（只注册用到的图表）；
 - AI：后端直调 Responses 风格接口，使用 JSON Schema 请求结构化结果；
 - 验证：JUnit、MockMvc、Vitest、Playwright。
 
@@ -136,13 +138,24 @@ npm --prefix frontend run build
 npm --prefix frontend run test:e2e
 ```
 
+论文离线评测（只用 Python 标准库，不需要联网，也不访问数据库）：
+
+```powershell
+python -m unittest discover -s evaluation/tests -v
+```
+
+评测脚本的输入是一份冻结的匿名 CSV，同一份输入永远得到同一份结果，产出可直接引用的
+JSON。用法、列定义和输出字段见 `evaluation/README.md`。
+
 ## 目录说明
 
 ```text
 backend/                         Spring Boot 后端
 frontend/                        Vue 教师端
+evaluation/                      论文离线评测脚本、示例数据与测试
 docs/superpowers/specs/          中文需求与设计说明
 docs/superpowers/plans/          中文实施与验收计划
+docs/experiments/                论文实验记录
 compose.yaml                     持久化 MySQL 开发环境
 compose.e2e.yaml                 一次性集成测试数据库配置
 ```

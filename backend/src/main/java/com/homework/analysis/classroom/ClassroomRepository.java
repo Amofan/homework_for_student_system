@@ -1,5 +1,6 @@
 package com.homework.analysis.classroom;
 
+import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -43,19 +44,15 @@ public class ClassroomRepository {
     }
 
     ClassroomView insert(long teacherId, ClassroomRequest request) {
-        jdbc.sql("""
+        long classId = GeneratedKeys.insert(jdbc, """
                 insert into school_class(teacher_id, class_code, name, grade, semester)
                 values (:teacherId, :classCode, :name, :grade, :semester)
-                """)
+                """, statement -> statement
             .param("teacherId", teacherId).param("classCode", request.classCode().trim())
             .param("name", request.name().trim()).param("grade", request.grade())
-            .param("semester", request.semester()).update();
-        return jdbc.sql("""
-                select c.id, c.class_code, c.name, c.grade, c.semester, 0 as student_count
-                from school_class c where c.teacher_id = :teacherId and c.class_code = :classCode
-                """)
-            .param("teacherId", teacherId).param("classCode", request.classCode().trim())
-            .query(ClassroomRepository::map).single();
+            .param("semester", request.semester()));
+        return findOwned(teacherId, classId).orElseThrow(
+            () -> new IllegalStateException("新建班级后未能读回该班级"));
     }
 
     int updateOwned(long teacherId, long classId, ClassroomRequest request) {

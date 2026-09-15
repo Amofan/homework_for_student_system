@@ -13,7 +13,13 @@ const mocks = vi.hoisted(() => ({
   downloadExerciseDocx: vi.fn(),
 }))
 
-vi.mock('element-plus', () => ({ ElMessage: mocks.messages }))
+// 只替换 ElMessage，保留其余导出：模板里的 Element Plus 组件由按需导入插件注入，
+// 整包 mock 掉会让 ElSelect/ElOption 变成 undefined，组件还没渲染就报错。
+// 组件本身在本文件里被 stubs 换成占位组件，保留真实导出不会影响断言。
+vi.mock('element-plus', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('element-plus')>()),
+  ElMessage: mocks.messages,
+}))
 
 vi.mock('../api/client', () => ({
   api: { get: mocks.apiGet },
