@@ -3,6 +3,9 @@ import { createApp } from 'vue'
 // 但 ElMessage 是各页面显式 import 调用的（这样测试才能 mock 掉它），不走插件，
 // 它的样式得单独引一次；这一行同时带入 element-plus 的 base 样式与 CSS 变量。
 import 'element-plus/es/components/message/style/css'
+// KaTeX 字体与排版样式。只在入口引一次：公式组件散落在多个懒加载页面里，
+// 让组件各自引会把同一份 CSS 重复打进多个分包。
+import 'katex/dist/katex.min.css'
 
 import App from './App.vue'
 import { setUnauthorizedHandler } from './api/client'
