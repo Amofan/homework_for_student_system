@@ -18,6 +18,12 @@ test('教师登录后可查看作业、复核队列与学情画像，并生成�
   await expect(page.getByRole('heading', { name: '今天，从哪份作业开始？' })).toBeVisible()
   await expect(page.getByText('一元一次方程课堂巩固')).toBeVisible()
 
+  // 题库是公式出现的第一站：先在这里确认 $...$ 真的被渲染成了公式节点。
+  await page.getByRole('link', { name: /数学题库/ }).click()
+  const equationCard = page.locator('.question-card').filter({ hasText: 'Q-ALG-001' })
+  await expect(equationCard.locator('.katex')).toBeVisible()
+  await expect(equationCard).not.toContainText('$2x+1=5$')
+
   await page.getByRole('link', { name: /教师复核/ }).click()
   await expect(page.getByText('李沐').or(page.getByText('张晨'))).toBeVisible()
   await expect(page.getByText('AI 建议')).toBeVisible()

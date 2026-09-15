@@ -7,6 +7,7 @@ import {
   type ApiResponse,
 } from '../api/client'
 import type { Assignment, Classroom, ExerciseSet, ExerciseTier } from '../api/types'
+import MathText from '../math/MathText.vue'
 
 const tierOrder: ExerciseTier[] = ['FOUNDATION', 'CORRECTION', 'IMPROVEMENT']
 const tierLabel: Record<ExerciseTier, string> = {
@@ -178,7 +179,7 @@ onMounted(async () => {
                 <span class="mono">{{ item.questionCode }}</span>
                 <span>{{ item.totalScore }} 分</span>
               </div>
-              <p class="formula-text">{{ item.content }}</p>
+              <p class="formula-text"><MathText :text="item.content" /></p>
               <div class="question-foot"><span>知识点：{{ item.knowledgePointName }}</span></div>
             </div>
           </article>

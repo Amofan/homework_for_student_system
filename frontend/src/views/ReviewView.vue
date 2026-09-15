@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { api, errorMessage, type ApiResponse } from '../api/client'
 import { errorTypeLabel } from '../api/errorTypes'
 import type { Assignment, ReviewQueueItem } from '../api/types'
+import MathText from '../math/MathText.vue'
 
 const assignments = ref<Assignment[]>([])
 const assignmentId = ref<number>()
@@ -47,9 +48,9 @@ onMounted(async () => { try { const response = await api.get<ApiResponse<Assignm
       <aside class="paper-card review-list"><div class="card-title"><div><span>待复核</span><h2>{{ queue.length }} 条答案</h2></div></div><button v-for="item in queue" :key="item.resultId" :class="{ active: selected?.resultId === item.resultId }" @click="select(item)"><span>{{ item.studentNo }}</span><b>{{ item.studentName }}</b><small>{{ item.questionCode }} · 建议 {{ item.suggestedScore }}/{{ item.totalScore }}</small></button></aside>
       <article v-if="selected" class="paper-card review-sheet">
         <div class="review-progress">第 {{ currentIndex }} / {{ queue.length }} 条 <span :class="['source-badge', selected.source.toLowerCase()]">{{ selected.source === 'AI' ? 'AI 建议' : '规则评分' }}</span></div>
-        <div class="answer-section"><span>题目 {{ selected.questionCode }}</span><p class="formula-text">{{ selected.questionContent }}</p></div>
-        <div class="student-answer"><span>学生作答</span><p>{{ selected.answerContent || '（未作答）' }}</p></div>
-        <div class="suggestion-block"><div><span>建议得分</span><strong>{{ selected.suggestedScore }}<small>/ {{ selected.totalScore }}</small></strong></div><div><span>建议错因</span><b>{{ errorTypeLabel(selected.errorType) }}</b><p>{{ selected.teacherExplanation }}</p></div></div>
+        <div class="answer-section"><span>题目 {{ selected.questionCode }}</span><p class="formula-text"><MathText :text="selected.questionContent" /></p></div>
+        <div class="student-answer"><span>学生作答</span><p><MathText :text="selected.answerContent || '（未作答）'" /></p></div>
+        <div class="suggestion-block"><div><span>建议得分</span><strong>{{ selected.suggestedScore }}<small>/ {{ selected.totalScore }}</small></strong></div><div><span>建议错因</span><b>{{ errorTypeLabel(selected.errorType) }}</b><p><MathText :text="selected.teacherExplanation ?? ''" /></p></div></div>
         <div class="review-form"><div class="decision-tabs"><button v-for="choice in [['ACCEPT','采纳'],['MODIFY','修改'],['REJECT','驳回并人工评分']]" :key="choice[0]" :class="{ active: form.decision === choice[0] }" @click="form.decision = choice[0]">{{ choice[1] }}</button></div><div class="form-grid"><label>最终得分<el-input-number v-model="form.finalScore" :min="0" :max="selected.totalScore" /></label><label>最终错因<el-input v-model="form.errorType" /></label></div><label>给学生的反馈<el-input v-model="form.feedback" type="textarea" :rows="2" /></label><label v-if="form.decision !== 'ACCEPT'">修改原因<el-input v-model="form.reason" placeholder="修改或驳回时必填" /></label><button class="primary-button confirm-review" @click="confirm">确认本条复核</button></div>
       </article>
     </div>

@@ -108,7 +108,8 @@ describe('ExerciseView', () => {
     expect(wrapper.text()).toContain('基础巩固层')
     expect(wrapper.text()).toContain('方法纠错层')
     expect(wrapper.text()).toContain('综合提升层')
-    expect(wrapper.text()).toContain('解方程 $2x+1=5$')
+    expect(wrapper.find('.katex').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('$2x+1=5$')
     expect(wrapper.text()).toContain('知识点：一元一次方程')
   })
 
