@@ -95,8 +95,17 @@ async function approve() {
 async function download() {
   if (!current.value) return
   try {
-    await downloadExerciseDocx(current.value.id)
+    const fallbackCodes = await downloadExerciseDocx(current.value.id)
     ElMessage.success('已开始下载 Word 文档')
+    // 下载成功也要说清哪些题没能完整转换：文档里的红色标记只在 Word 里看得见，
+    // 不在这里点名，教师打印前不会知道要核对哪几道题。
+    if (fallbackCodes.length) {
+      const named = fallbackCodes.filter(code => code !== '...')
+      const suffix = fallbackCodes.includes('...') ? '，等' : ''
+      ElMessage.warning(
+        `这些题目的公式没能完整转成 Word 格式，文档中已标红：${named.join('、')}${suffix}`,
+      )
+    }
   } catch (reason) {
     ElMessage.error(errorMessage(reason))
   }

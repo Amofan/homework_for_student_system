@@ -167,12 +167,37 @@ describe('ExerciseView', () => {
 
   it('已确认的练习单可以导出 Word', async () => {
     mocks.listExercises.mockResolvedValue([exercise({ status: 'APPROVED' })])
-    mocks.downloadExerciseDocx.mockResolvedValue(undefined)
+    mocks.downloadExerciseDocx.mockResolvedValue([])
     const wrapper = await mountView()
 
     await buttonWith(wrapper, '导出 Word')!.trigger('click')
     await flushPromises()
 
     expect(mocks.downloadExerciseDocx).toHaveBeenCalledWith(7)
+  })
+
+  it('导出存在公式降级时点名题目并说明文档已标红', async () => {
+    mocks.listExercises.mockResolvedValue([exercise({ status: 'APPROVED' })])
+    mocks.downloadExerciseDocx.mockResolvedValue(['Q-ALG-007', 'Q-GEO-005', '...'])
+    const wrapper = await mountView()
+
+    await buttonWith(wrapper, '导出 Word')!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.messages.warning).toHaveBeenCalledWith(
+      '这些题目的公式没能完整转成 Word 格式，文档中已标红：Q-ALG-007、Q-GEO-005，等',
+    )
+  })
+
+  it('没有公式降级时只提示下载成功', async () => {
+    mocks.listExercises.mockResolvedValue([exercise({ status: 'APPROVED' })])
+    mocks.downloadExerciseDocx.mockResolvedValue([])
+    const wrapper = await mountView()
+
+    await buttonWith(wrapper, '导出 Word')!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.messages.success).toHaveBeenCalledWith('已开始下载 Word 文档')
+    expect(mocks.messages.warning).not.toHaveBeenCalled()
   })
 })

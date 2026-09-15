@@ -85,12 +85,15 @@ export function docxFilename(exerciseId: number, disposition: unknown): string {
 }
 
 /**
- * 下载已确认的练习单。
+ * 下载已确认的练习单，返回没能转成 Word 格式的题目题号（没有降级时是空数组）。
  *
  * <p>必须走 axios 带上 Authorization 头再手动保存 Blob：把令牌拼进 URL
  * 会让它留在浏览器历史、代理日志和服务器访问日志里，等于泄露凭据。
+ *
+ * <p>响应头只在有降级时才出现，所以"头在不在"就足以区分两种结果；
+ * 末尾的 `...` 由页面翻译成"等"，这里原样保留。
  */
-export async function downloadExerciseDocx(exerciseId: number): Promise<void> {
+export async function downloadExerciseDocx(exerciseId: number): Promise<string[]> {
   const response = await api.get<Blob>(`/exercises/${exerciseId}/export.docx`, { responseType: 'blob' })
   const url = URL.createObjectURL(response.data)
   try {
@@ -103,4 +106,8 @@ export async function downloadExerciseDocx(exerciseId: number): Promise<void> {
   } finally {
     URL.revokeObjectURL(url)
   }
+  const fallback = response.headers['x-formula-fallback']
+  return typeof fallback === 'string'
+    ? fallback.split(',').map(code => code.trim()).filter(Boolean)
+    : []
 }

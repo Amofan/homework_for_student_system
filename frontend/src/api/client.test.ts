@@ -125,16 +125,32 @@ describe('downloadExerciseDocx', () => {
         data: new Blob(['PK']),
         status: 200,
         statusText: '200',
-        headers: { 'content-disposition': 'attachment; filename="exercise-7.docx"' },
+        // 服务端只在有公式降级时才带这个头；省略号表示降级题目超过 20 个。
+        headers: {
+          'content-disposition': 'attachment; filename="exercise-7.docx"',
+          'x-formula-fallback': 'Q-ALG-007,Q-GEO-005,...',
+        },
         config,
       } as AxiosResponse
     }
 
-    await downloadExerciseDocx(7)
+    await expect(downloadExerciseDocx(7)).resolves.toEqual(['Q-ALG-007', 'Q-GEO-005', '...'])
 
     expect(authorization).toBe('Bearer token-abc')
     expect(responseType).toBe('blob')
     expect(saved).toEqual([{ href: 'blob:mock', download: 'exercise-7.docx' }])
+  })
+
+  it('没有降级响应头时返回空数组', async () => {
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) => ({
+      data: new Blob(['PK']),
+      status: 200,
+      statusText: '200',
+      headers: { 'content-disposition': 'attachment; filename="exercise-8.docx"' },
+      config,
+    } as AxiosResponse)
+
+    await expect(downloadExerciseDocx(8)).resolves.toEqual([])
   })
 
   it('服务端没给文件名时退回本地拼装', () => {
