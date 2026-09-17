@@ -11,3 +11,11 @@ app:
     issuer: homework-analysis-test
     secret: test-secret-test-secret-test-secret-1234
     access-minutes: 30
+  storage:
+    provider: LOCAL
+    # local-root 由需要真实写文件的测试类通过 @DynamicPropertySource 指向各自的临时目录；
+    # 这里给一个不会被写入的占位值，避免任何测试意外写进仓库。
+    local-root: ${java.io.tmpdir}/homework-analysis-test-storage
+    # 关掉后台清理任务：定时任务会让测试之间互相干扰（它会在断言中途删文件）。
+    # DocumentCleanupJobTest 直接调用 runOnce()，不需要调度器参与。
+    cleanup-enabled: false

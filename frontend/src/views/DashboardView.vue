@@ -26,7 +26,7 @@ onMounted(async () => {
   <section class="page dashboard-page">
     <header class="page-heading dashboard-heading">
       <div><p class="kicker">教学诊断台</p><h1>今天，从哪份作业开始？</h1><p>先确认批改结果，再用画像决定下一节课讲什么。</p></div>
-      <RouterLink to="/assignments" class="primary-button">新建一份作业</RouterLink>
+      <RouterLink to="/teacher/assignments" class="primary-button">新建一份作业</RouterLink>
     </header>
     <div v-if="error" class="state-panel error-state">{{ error }}</div>
     <div v-else-if="loading" class="state-panel">正在读取教学数据…</div>
@@ -39,12 +39,12 @@ onMounted(async () => {
       </div>
       <div class="dashboard-grid">
         <article class="paper-card current-work">
-          <div class="card-title"><div><span>最近作业</span><h2>批改进度</h2></div><RouterLink to="/assignments">查看全部</RouterLink></div>
+          <div class="card-title"><div><span>最近作业</span><h2>批改进度</h2></div><RouterLink to="/teacher/assignments">查看全部</RouterLink></div>
           <div v-if="assignments.length === 0" class="empty-invite"><b>还没有作业</b><p>先建立题库，再创建第一份结构化作业。</p></div>
           <div v-for="item in assignments.slice(0, 4)" :key="item.id" class="assignment-row">
             <span class="assignment-status">{{ item.status === 'DRAFT' ? '草稿' : '处理中' }}</span>
             <div><b>{{ item.title }}</b><small>{{ item.questionIds.length }} 道题 · 班级编号 {{ item.classId }}</small></div>
-            <RouterLink to="/review">继续</RouterLink>
+            <RouterLink to="/teacher/review">继续</RouterLink>
           </div>
         </article>
         <article class="paper-card teaching-loop">

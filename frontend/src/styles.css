@@ -137,6 +137,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .data-table td { padding: 15px 14px; border-bottom: 1px solid var(--line); }
 .status-pill, .type-pill, .source-badge { display: inline-flex; padding: 5px 9px; border-radius: 999px; color: #7d641e; background: #fff3d1; font-size: 10px; font-style: normal; }
 .status-pill.good { color: #167060; background: #dff5ef; }
+/* 未开通账号是中性状态，不是警告：用灰色而不是"待处理"的黄色，避免整张名册看起来都在告警。 */
+.status-pill.muted { color: #6b7280; background: #eef1f5; }
+.account-name { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+.table-action { margin-right: 8px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: #fff; font-size: 11px; cursor: pointer; }
+.table-action:hover:not(:disabled) { border-color: #bfcaff; color: var(--blue); }
+.table-action:disabled { opacity: .5; cursor: not-allowed; }
+.credential-warning { margin-bottom: 14px; padding: 11px 14px; border-left: 3px solid #d9a521; border-radius: 4px; color: #7d641e; background: #fff8e6; font-size: 12px; }
+.credential-secret { color: var(--ink); font-weight: 700; letter-spacing: .04em; }
+.narrow-page { max-width: 720px; }
+.password-card { display: grid; gap: 16px; padding: 26px; }
+.password-card label { display: grid; gap: 7px; font-size: 12px; }
+.password-card input { padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; font-size: 14px; }
+.field-hint { margin: 0; color: var(--muted); font-size: 11px; }
+.due-line { margin-top: 4px; color: var(--muted); font-size: 11px; }
+/* 未提交且已过截止时间才标红：交过的作业不该被"已截止"追着提醒。 */
+.due-line.overdue { color: #b4443a; font-weight: 700; }
+.date-input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; font-size: 13px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
 .el-dialog { border-radius: 14px !important; }
@@ -206,6 +223,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .answer-section > span, .student-answer > span, .suggestion-block span, .review-form label { color: var(--muted); font-size: 11px; }
 .student-answer { padding: 16px; border-radius: 8px; background-color: #f8faff; background-image: linear-gradient(#e9edf5 1px, transparent 1px); background-size: 100% 28px; }
 .student-answer p { margin: 8px 0; font-family: KaiTi, STKaiti, serif; font-size: 18px; line-height: 28px; }
+/* 答案图是教师判分的依据，识别文字只是它的转写。图按学生写的顺序并排，
+   每张限高，否则一道跨页大题会把复核表单挤到屏幕外。 */
+.answer-assets { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+.answer-asset { margin: 0; max-width: 100%; }
+.answer-asset .private-image { width: auto; max-width: 100%; max-height: 220px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.answer-asset figcaption { margin-top: 4px; color: var(--muted); font-size: 11px; text-align: center; }
+.student-answer p.answer-image-missing { font-family: inherit; font-size: 12px; color: var(--muted); }
 .suggestion-block { display: grid; grid-template-columns: 135px 1fr; gap: 25px; margin: 20px 0 0 15px; padding: 18px; border: 1px solid #d8e0ff; border-radius: 8px; background: #f5f7ff; }
 .suggestion-block strong { display: block; margin-top: 5px; color: var(--blue); font-family: Bahnschrift; font-size: 35px; }
 .suggestion-block strong small { font-size: 12px; }
@@ -230,6 +254,207 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .error-row small { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .error-row > div { height: 7px; border-radius: 6px; background: #edf0f5; overflow: hidden; }
 .error-row em { display: block; height: 100%; border-radius: inherit; background: var(--coral); }
+
+/* ---------- 整卷导入与校对 ---------- */
+
+.heading-actions { display: flex; align-items: center; gap: 10px; }
+.heading-actions a { text-decoration: none; }
+
+.create-import { padding: 24px; margin-bottom: 22px; }
+.create-import h2 { margin: 0 0 16px; font-family: KaiTi, STKaiti, serif; font-size: 22px; }
+.create-import .form-grid { margin-bottom: 8px; }
+.section-title { margin: 30px 0 14px; font-family: KaiTi, STKaiti, serif; font-size: 22px; }
+
+.current-import { padding: 24px; margin-bottom: 10px; }
+.current-import-head { display: flex; justify-content: space-between; }
+.current-import-head h2 { margin: 10px 0 5px; font-family: KaiTi, STKaiti, serif; font-size: 25px; }
+.current-import-head p { margin: 0; color: var(--muted); font-size: 11px; }
+.current-import-actions { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+.import-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.import-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; }
+.import-row b { display: block; }
+.import-row small { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+
+.upload-queue { display: grid; gap: 14px; margin: 22px 0 0; }
+.upload-slot { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 15px; border: 1px dashed #bfc9db; border-radius: 9px; background: #f9fbfe; }
+.upload-slot-head { display: flex; align-items: center; gap: 8px; }
+.upload-slot-head b { font-size: 13px; }
+.slot-required { padding: 3px 7px; border-radius: 999px; color: #a33; background: #ffeaea; font-size: 10px; }
+.slot-optional { padding: 3px 7px; border-radius: 999px; color: #6b7280; background: #eef1f5; font-size: 10px; }
+.upload-state { margin: 0; font-size: 12px; }
+.upload-state.good { color: #167060; }
+.upload-state.warn { color: #8b6720; }
+.upload-state.danger { color: #b23a3a; }
+.upload-state.idle { color: var(--muted); }
+.upload-picker { position: relative; cursor: pointer; }
+.upload-picker input { position: absolute; opacity: 0; pointer-events: none; }
+.upload-picker span { display: block; padding: 9px 12px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: #fff; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-actions { display: flex; align-items: center; gap: 14px; }
+
+.state-inline { margin: 16px 0 0; padding: 11px 15px; border-radius: 8px; color: #415b95; background: #eef3ff; font-size: 12px; }
+.state-inline.warn { color: #766128; background: #fff8e6; }
+.warning-list { margin: 18px 0; padding: 16px 20px; border-left: 3px solid #e2a92e; border-radius: 0 8px 8px 0; background: #fff8e6; }
+.warning-list b { font-size: 13px; }
+.warning-list ul { margin: 9px 0 0; padding-left: 18px; color: #766128; font-size: 12px; }
+
+.document-switch { display: flex; gap: 8px; margin-bottom: 14px; }
+.document-tab { display: grid; gap: 3px; padding: 11px 16px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--paper); cursor: pointer; text-align: left; }
+.document-tab small { color: var(--muted); font-size: 10px; }
+.document-tab.active { border-color: #c8d2ff; background: var(--blue-soft); }
+
+.review-tabs { display: none; gap: 6px; margin-bottom: 14px; padding: 5px; border-radius: 9px; background: #eef2f7; }
+.review-tabs button { flex: 1; padding: 9px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; }
+.review-tabs button.active { color: var(--ink); background: #fff; box-shadow: 0 3px 10px rgba(26,41,68,.1); font-weight: 700; }
+
+.paper-workspace { display: grid; grid-template-columns: 150px minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+.paper-pane { min-width: 0; }
+.thumbnails, .candidate-pane { padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--paper); box-shadow: var(--shadow); }
+.page-strip { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.page-thumb { width: 100%; display: grid; gap: 5px; padding: 7px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; }
+.page-thumb:hover, .page-thumb.active { border-color: #c8d2ff; background: var(--blue-soft); }
+.page-thumb.flagged { border-color: #e2a92e; }
+.page-thumb-no { color: var(--muted); font-size: 10px; }
+.page-thumb-note { color: #8b6720; font-size: 10px; }
+
+.page-canvas { position: relative; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: var(--shadow); overflow: hidden; }
+.page-canvas > img, .page-canvas > .private-image { display: block; width: 100%; height: auto; }
+.region-surface { position: absolute; inset: 0; }
+.region-box { position: absolute; padding: 0; border: 1.5px solid rgba(66,101,255,.55); border-radius: 3px; background: rgba(66,101,255,.08); cursor: move; }
+.region-box.active { border-color: #2b3fb8; background: rgba(66,101,255,.16); }
+/* 只读的区域框仍然可点（点它等于选中那道题的候选），但光标不能承诺"能拖"。 */
+.region-box.readonly { cursor: pointer; }
+/* 低置信度除了配色还必须有文字标签（见 RegionOverlay 的文件头注释）。 */
+.region-box.low { border-color: #c8861a; border-style: dashed; background: rgba(226,169,46,.12); }
+.region-tag { position: absolute; left: -1.5px; top: -15px; padding: 1px 5px; border-radius: 3px; color: #fff; background: rgba(43,63,184,.85); font-size: 9px; white-space: nowrap; }
+.low-tag { left: auto; right: -1.5px; background: #c8861a; }
+.region-handle { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; border: 1.5px solid #2b3fb8; border-radius: 2px; background: #fff; cursor: nwse-resize; }
+
+.unassigned-block { margin-top: 14px; padding: 14px 18px; border-left: 3px solid #e2a92e; background: #fff8e6; }
+.unassigned-block b { font-size: 12px; }
+.unassigned-block ul { margin: 8px 0 0; padding-left: 16px; font-size: 12px; }
+.link-button { padding: 0; border: 0; color: var(--blue); background: transparent; cursor: pointer; font-size: 12px; text-align: left; }
+
+.candidate-list { display: grid; gap: 4px; margin: 0 0 16px; padding: 0; list-style: none; max-height: 260px; overflow-y: auto; }
+.candidate-list button { width: 100%; display: grid; gap: 3px; padding: 10px; border: 1px solid transparent; border-bottom-color: var(--line); border-radius: 6px; color: var(--ink); background: transparent; cursor: pointer; text-align: left; }
+.candidate-list button:hover, .candidate-list button.active { border-color: #c8d2ff; background: var(--blue-soft); }
+.candidate-list span { font-size: 12px; font-weight: 700; }
+.candidate-list small { color: var(--muted); font-size: 10px; }
+.candidate-list small.warn-text { color: #8b6720; }
+
+/* 答卷队列：横向铺开而不是竖排列表。教师是"把全班过一遍"，横向扫过去比上下翻页更贴合，
+   而且窄屏上它自己也滚得动，不用再折一次。 */
+.queue-picker { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.queue-picker label { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.assignment-select { min-width: 220px; }
+.submission-queue { display: flex; gap: 8px; margin: 0 0 18px; padding: 4px 2px 10px; overflow-x: auto; list-style: none; }
+.submission-queue button { min-width: 148px; display: grid; gap: 4px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--paper); cursor: pointer; text-align: left; }
+.submission-queue button:hover, .submission-queue button.active { border-color: #c8d2ff; background: var(--blue-soft); }
+.submission-queue b { font-size: 13px; }
+.submission-queue small { color: var(--muted); font-size: 10px; }
+.submission-queue small.warn-text { color: #8b6720; }
+
+/* 学生写的那一屏。图是唯一凭证，所以给它整块宽度，不并排挤成缩略图。 */
+.answer-crops { display: grid; gap: 10px; margin: 4px 0 14px; }
+.answer-crops b { font-size: 12px; }
+.answer-crop img { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.answer-crop .field-hint { margin: 0; }
+.blank-toggle { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 700; }
+.reassign-block, .reference-panel { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.reassign-block b, .reference-panel b { font-size: 12px; }
+.reassign-block ul { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 0; padding: 0; list-style: none; }
+.reference-panel p { margin: 8px 0 0; font-size: 12px; }
+.reference-panel p b { margin-right: 6px; }
+
+.candidate-form { display: grid; gap: 12px; }
+.candidate-form label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }
+.text-input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: #fff; font: inherit; }
+.text-input:focus { border-color: var(--blue); outline: none; }
+.formula-preview { padding: 10px 12px; border-radius: 8px; background: #f8faff; }
+.order-buttons { display: flex; gap: 6px; }
+.source-regions { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #f9fbfe; }
+.source-regions b { font-size: 12px; }
+.source-regions ul { display: grid; gap: 7px; margin: 9px 0 0; padding: 0; list-style: none; }
+.source-regions li { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.asset-toggle { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+.asset-badge { padding: 2px 6px; border-radius: 999px; color: #167060; background: #dff5ef; font-size: 10px; }
+.candidate-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--line); }
+
+.private-image { display: block; }
+.private-image.placeholder { display: grid; place-items: center; min-height: 80px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); background: #f9fbfe; font-size: 11px; }
+.question-figure { margin: 12px 0 0; }
+/* 等比缩放：题图被压扁会让图形题失去意义，而教师无法从变形后的图里判断对错。 */
+.question-figure img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+
+/* ---------- 学生答卷：上传、整理与版本历史 ---------- */
+
+/* 状态色对应 StateTone 的四个取值（见 api/types.ts）。缺一个取值就会静默变成默认的黄色。 */
+.status-pill.warn { color: #8b6720; background: #fff4d6; }
+.status-pill.danger { color: #a33c33; background: #ffeaea; }
+.status-pill.idle { color: #6b7280; background: #eef1f5; }
+
+.success-state { color: #167060; border-color: #bfe3d9; background: #f2fbf8; }
+.success-state b { font-family: KaiTi, STKaiti, serif; font-size: 20px; }
+.success-state p { margin: 7px 0 0; font-size: 13px; }
+.success-state .primary-button, .success-state .secondary-button { margin-top: 14px; }
+
+/* 卡片内边距：.paper-card 只管边框与圆角，padding 一向由具体版式给出。 */
+.submission-card { padding: 24px; margin-bottom: 18px; }
+.submission-card > h2 { margin: 0 0 6px; font-family: KaiTi, STKaiti, serif; font-size: 22px; }
+
+/* 退回原因是学生回来要找的那句话，所以给它批改红，而不是一条灰色小字。 */
+.return-reason { margin: 12px 0 0; padding: 11px 14px; border-left: 3px solid var(--coral); border-radius: 0 8px 8px 0; color: #a33c33; background: #fff0ee; font-size: 12px; }
+.submission-actions { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+.submission-actions .field-hint { margin: 0; }
+
+/* 上传队列。`ol` 要自己清掉列表样式：.upload-queue 是给整卷导入的 div 用的。 */
+ol.upload-queue { padding: 0; list-style: none; }
+.upload-item { display: grid; gap: 8px; padding: 14px; border: 1px dashed #bfc9db; border-radius: 9px; background: #f9fbfe; }
+.upload-item.failed { border-color: #f0c3be; background: #fff8f7; }
+.upload-item-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.upload-item-name { min-width: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.upload-item-size { color: var(--muted); font-size: 11px; }
+.upload-item-state { margin: 0; color: var(--muted); font-size: 12px; }
+.upload-item-state.danger { color: #b23a3a; }
+.upload-item-progress { width: 100%; height: 6px; border: 0; border-radius: 999px; }
+.upload-item-actions { display: flex; align-items: center; gap: 12px; }
+
+/* 整理台。手机上没有拖动（HTML5 拖放不响应触摸），所以按钮是主路径，要够大够密。 */
+.page-organizer { display: grid; gap: 12px; margin: 16px 0 0; padding: 0; list-style: none; }
+.organizer-page { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.organizer-page.dragging { border-color: #c8d2ff; background: var(--blue-soft); }
+.organizer-thumb { position: relative; }
+.organizer-thumb .private-image { width: 100%; border-radius: 6px; }
+.organizer-page-no { position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 999px; color: #fff; background: rgba(26, 41, 68, .72); font-size: 10px; }
+.organizer-detail { min-width: 0; display: grid; align-content: start; gap: 5px; }
+.organizer-file { margin: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.organizer-quality { margin: 0; color: var(--muted); font-size: 11px; }
+.organizer-quality.good { color: #167060; }
+.organizer-quality.warn { color: #8b6720; }
+.organizer-quality.danger { color: #b23a3a; }
+/* 一页有五个动作，挤在一行里手机上会窄到点不中；自己换行比缩小按钮好。 */
+.organizer-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.link-button.danger { color: #b23a3a; }
+
+/* 提交区。确认用页面内的一张卡片而不是弹窗：弹窗会盖住它正在解释的那几页。 */
+.submit-area { display: grid; gap: 10px; margin-top: 18px; }
+.submit-confirm { place-items: stretch; display: grid; gap: 10px; margin-top: 16px; padding: 22px; text-align: left; }
+.submit-confirm > b { color: var(--ink); font-family: KaiTi, STKaiti, serif; font-size: 20px; }
+.submit-confirm p { margin: 0; font-size: 12px; }
+.submit-confirm p.danger { color: #b23a3a; }
+.confirm-check { display: flex; align-items: center; gap: 9px; color: var(--ink); font-size: 13px; }
+.submit-confirm-actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+
+/* 提交记录：每一版一行，当前提交单独标出来。 */
+.version-list { display: grid; gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
+.version-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.version-item-main { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.version-item-main p { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 11px; }
+.version-current { color: var(--teal); font-size: 10px; font-weight: 800; }
+
+@media (max-width: 1050px) {
+  .paper-workspace { grid-template-columns: 120px minmax(0, 1fr); }
+  .candidate-pane { grid-column: 1 / -1; }
+}
 
 @media (max-width: 1050px) {
   .metric-ledger { grid-template-columns: repeat(2, 1fr); }
@@ -266,6 +491,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .assignment-picker, .filter-pair .el-select { width: 100%; }
   .filter-pair { width: 100%; flex-direction: column; }
   .suggestion-block { grid-template-columns: 1fr; }
+  /* 移动端用选项卡切换，而不是把三栏压扁：区域框会小到点不中，拖动更不可能。 */
+  .review-tabs { display: flex; }
+  .paper-workspace { grid-template-columns: 1fr; }
+  .paper-workspace[data-tab="candidate"] .thumbnails,
+  .paper-workspace[data-tab="candidate"] .page-view { display: none; }
+  .paper-workspace[data-tab="page"] .candidate-pane { display: none; }
+  .upload-slot { grid-template-columns: 1fr; }
+  .heading-actions { width: 100%; flex-direction: column; align-items: stretch; }
+  /* 学生答卷：缩略图让位给文件名，提交按钮铺满一行（拇指点得到）。 */
+  .organizer-page { grid-template-columns: 76px minmax(0, 1fr); }
+  .submission-card { padding: 18px; }
+  .submit-area .primary-button, .submit-confirm-actions .primary-button,
+  .submit-confirm-actions .secondary-button, .submission-actions .primary-button { width: 100%; }
+  .submit-confirm-actions { flex-direction: column; align-items: stretch; }
+  .version-item { flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {

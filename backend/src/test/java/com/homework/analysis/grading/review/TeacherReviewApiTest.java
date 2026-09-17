@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -112,6 +113,51 @@ class TeacherReviewApiTest {
             .isEqualTo("PENDING_REVIEW");
     }
 
+    @Test
+    void 待复核的答案带着它的答案图() throws Exception {
+        seedAnswerAssets();
+
+        mvc.perform(get("/api/grading/assignments/501/review-queue").header("Authorization", bearer()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].answerAssets.length()").value(2))
+            // 教师判分看的是学生写的那几个字，所以第一张图必须能取到，而且要说清它从哪来。
+            .andExpect(jsonPath("$.data[0].answerAssets[0].fileId").value(902))
+            .andExpect(jsonPath("$.data[0].answerAssets[0].role").value("SOURCE_CROP"))
+            .andExpect(jsonPath("$.data[0].answerAssets[0].pageNo").value(1))
+            .andExpect(jsonPath("$.data[0].answerAssets[0].x").value(0.1))
+            .andExpect(jsonPath("$.data[0].answerAssets[0].sortOrder").value(1))
+            // 跨页续写的第二块排在后头，界面要按学生写的顺序并排显示。
+            .andExpect(jsonPath("$.data[0].answerAssets[1].sortOrder").value(2))
+            .andExpect(jsonPath("$.data[0].answerAssets[1].pageNo").value(2));
+    }
+
+    @Test
+    void 区域被重新配准换掉之后答案图还在只是没了位置() throws Exception {
+        seedAnswerAssets();
+        // 模板重新配准会替换区域，student_answer_asset.document_region_id 被置空
+        // （外键是 on delete set null）。但答案图是批改依据，必须留着。
+        jdbc.update("update student_answer_asset set document_region_id = null where answer_id = 611");
+        jdbc.update("update student_answer_asset set submission_page_id = null where answer_id = 611");
+
+        mvc.perform(get("/api/grading/assignments/501/review-queue").header("Authorization", bearer()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].answerAssets.length()").value(2))
+            .andExpect(jsonPath("$.data[0].answerAssets[0].fileId").value(902))
+            // 位置没了就是没了：编一个默认框会让教师以为图是从那一块裁出来的。
+            .andExpect(jsonPath("$.data[0].answerAssets[0].pageNo").doesNotExist())
+            .andExpect(jsonPath("$.data[0].answerAssets[0].x").doesNotExist());
+    }
+
+    @Test
+    void 没有答案图的答案照常排在待复核里() throws Exception {
+        // 整卷 Excel 导入那条旧链路没有答案图。缺图不该让这一条从列表里消失，
+        // 否则教师看不到它就等于漏批了一道题。
+        mvc.perform(get("/api/grading/assignments/501/review-queue").header("Authorization", bearer()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].answerAssets.length()").value(0));
+    }
+
     private void review(String body) throws Exception {
         mvc.perform(post("/api/grading/results/" + RESULT_ID + "/review")
                 .header("Authorization", bearer())
@@ -127,5 +173,38 @@ class TeacherReviewApiTest {
 
     private String bearer() {
         return "Bearer " + jwtService.issue(11, 11, "TEACHER");
+    }
+
+    /**
+     * 这道题的答案图：两页各一块，指的是一份已经确认入库的答卷。
+     *
+     * <p>直插 {@code student_answer_asset} 而不是跑一遍上传识别确认：
+     * 那个链路已经在 {@code SubmissionConfirmationTest} 里冻结过了，这里要验的只是
+     * "待复核列表怎么把答案图读出来"，把整条链路再铺一遍只会让这个类慢十倍。
+     */
+    private void seedAnswerAssets() {
+        jdbc.update("insert into stored_file(id, teacher_id, storage_key, original_name, mime_type,"
+            + " size_bytes, sha256) values"
+            + " (900, 11, 'submission/page-1.png', '答卷.png', 'image/png', 3, 'a'),"
+            + " (902, 11, 'answer/611-1.png', '答案图1.png', 'image/png', 3, 'b'),"
+            + " (903, 11, 'answer/611-2.png', '答案图2.png', 'image/png', 3, 'c')");
+        jdbc.update("insert into submission_version(id, submission_id, assignment_id, student_id, version_no,"
+            + " status, is_current) values (1101, 601, 501, 1001, 1, 'LOCKED', true)");
+        jdbc.update("update submission set submission_version_id = 1101 where id = 601");
+        jdbc.update("insert into document_upload(id, document_kind, teacher_id, assignment_id, student_id,"
+            + " submission_version_id, original_file_id, status, page_count)"
+            + " values (700, 'STUDENT_SUBMISSION', 11, 501, 1001, 1101, 900, 'CONFIRMED', 2)");
+        jdbc.update("insert into document_page(id, document_id, page_no, page_file_id)"
+            + " values (701, 700, 1, 900), (702, 700, 2, 900)");
+        jdbc.update("insert into submission_page(id, submission_version_id, page_no, document_id,"
+            + " document_page_no, page_file_id, rotated_file_id) values"
+            + " (8001, 1101, 1, 700, 1, 900, 900), (8002, 1101, 2, 700, 2, 900, 900)");
+        jdbc.update("insert into document_region(id, page_id, region_type, x, y, width, height)"
+            + " values (801, 701, 'ANSWER_BLOCK', 0.1, 0.2, 0.3, 0.1),"
+            + " (802, 702, 'ANSWER_BLOCK', 0.1, 0.3, 0.3, 0.1)");
+        jdbc.update("insert into student_answer_asset(id, answer_id, submission_version_id,"
+            + " submission_page_id, document_region_id, file_id, role, sort_order) values"
+            + " (901, 611, 1101, 8001, 801, 902, 'SOURCE_CROP', 1),"
+            + " (904, 611, 1101, 8002, 802, 903, 'SOURCE_CROP', 2)");
     }
 }

@@ -21,3 +21,8 @@ app:
     name: ${MODEL_NAME:disabled}
     api-key: ${MODEL_API_KEY:}
     timeout-seconds: ${MODEL_TIMEOUT_SECONDS:10}
+  storage:
+    # 演示固定用本地目录，且落在用户主目录下：演示数据会随手删除整个演示库，
+    # 把文件写进仓库会留下一堆没人认领的孤儿对象。
+    provider: LOCAL
+    local-root: ${STORAGE_LOCAL_ROOT:${user.home}/.homework-analysis/demo-storage}

@@ -12,6 +12,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -70,6 +73,21 @@ class StudentApiTest {
                 .content("{\"studentNo\":\"001\",\"name\":\"越权修改\"}"))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
+    }
+
+    /**
+     * 未开通账号的学生不出现在名册的账号字段里。
+     *
+     * <p>用“字段整体缺省”而不是“字段为 null”表达未开通，前端才能只靠一次存在性判断
+     * 决定显示“开通账号”还是“重置密码”；返回 {@code null} 会迫使前端区分 null、空串和缺失三种情况。
+     */
+    @Test
+    void unprovisionedStudentsHaveNoAccountFields() throws Exception {
+        String body = mvc.perform(get("/api/classes/101/students").header("Authorization", bearerFor(11)))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body).doesNotContain("accountUsername").doesNotContain("accountStatus");
     }
 
     private String bearerFor(long teacherId) {

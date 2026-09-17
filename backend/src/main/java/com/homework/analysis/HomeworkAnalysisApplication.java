@@ -5,12 +5,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import com.homework.analysis.document.StorageProperties;
 import com.homework.analysis.grading.ai.ModelProperties;
+import com.homework.analysis.ocr.OcrProperties;
 
 import java.time.Clock;
 
 @SpringBootApplication
-@EnableConfigurationProperties(ModelProperties.class)
+@EnableConfigurationProperties({ModelProperties.class, StorageProperties.class, OcrProperties.class})
 public class HomeworkAnalysisApplication {
     public static void main(String[] args) {
         SpringApplication.run(HomeworkAnalysisApplication.class, args);

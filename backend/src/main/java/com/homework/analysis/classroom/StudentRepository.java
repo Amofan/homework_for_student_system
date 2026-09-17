@@ -17,9 +17,10 @@ public class StudentRepository {
 
     List<StudentView> findAllOwned(long teacherId, long classId) {
         return jdbc.sql("""
-                select s.id, s.class_id, s.student_no, s.name
+                select s.id, s.class_id, s.student_no, s.name, u.username, u.account_status
                 from student s
                 join school_class c on c.id = s.class_id
+                left join app_user u on u.id = s.user_id
                 where c.teacher_id = :teacherId and c.id = :classId
                   and c.deleted_at is null and s.deleted_at is null
                 order by s.student_no, s.id
@@ -32,9 +33,10 @@ public class StudentRepository {
 
     Optional<StudentView> findOwned(long teacherId, long studentId) {
         return jdbc.sql("""
-                select s.id, s.class_id, s.student_no, s.name
+                select s.id, s.class_id, s.student_no, s.name, u.username, u.account_status
                 from student s
                 join school_class c on c.id = s.class_id
+                left join app_user u on u.id = s.user_id
                 where c.teacher_id = :teacherId and s.id = :studentId
                   and c.deleted_at is null and s.deleted_at is null
                 """)
@@ -85,8 +87,29 @@ public class StudentRepository {
             .update();
     }
 
+    /**
+     * 停用学生已开通的账号。
+     *
+     * <p>删除学生不物理删除账号，也不删除历史提交：账号转为 {@code DISABLED} 后无法登录，
+     * 但既有作业、评分与审计记录仍能追到人。子查询读的是 {@code student}/{@code school_class}，
+     * 不是被更新的 {@code app_user}，因此不触发 MySQL 的“不能更新正在查询的表”限制。
+     */
+    int disableAccountOwned(long teacherId, long studentId) {
+        return jdbc.sql("""
+                update app_user set account_status = 'DISABLED', enabled = false,
+                    updated_at = current_timestamp(3)
+                where id = (select s.user_id from student s
+                    join school_class c on c.id = s.class_id
+                    where s.id = :studentId and c.teacher_id = :teacherId and s.user_id is not null)
+                """)
+            .param("studentId", studentId)
+            .param("teacherId", teacherId)
+            .update();
+    }
+
     private static StudentView map(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
         return new StudentView(rs.getLong("id"), rs.getLong("class_id"),
-            rs.getString("student_no"), rs.getString("name"));
+            rs.getString("student_no"), rs.getString("name"),
+            rs.getString("username"), rs.getString("account_status"));
     }
 }

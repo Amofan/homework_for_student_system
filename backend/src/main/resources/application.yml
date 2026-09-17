@@ -10,6 +10,12 @@ spring:
   jackson:
     time-zone: UTC
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      # 与 app.storage 的上限保持一致：容器先于业务代码拒绝超大请求，
+      # 避免把 100 MiB 读进内存后才在业务层发现超限。
+      max-file-size: 25MB
+      max-request-size: 100MB
 
 management:
   endpoints:
@@ -33,3 +39,37 @@ app:
     name: ${MODEL_NAME:disabled}
     api-key: ${MODEL_API_KEY:}
     timeout-seconds: ${MODEL_TIMEOUT_SECONDS:30}
+  storage:
+    # 正式部署应显式设为 S3 并补齐 bucket/region；默认 LOCAL 是为了让本机
+    # 不带任何额外配置也能启动，而不是为了"悄悄降级"——provider=S3 时缺参数会在启动期失败。
+    provider: ${STORAGE_PROVIDER:LOCAL}
+    # 受控目录，且刻意放在仓库之外：文件内容不进 Git，也不进前端静态目录。
+    local-root: ${STORAGE_LOCAL_ROOT:${user.home}/.homework-analysis/storage}
+    bucket: ${STORAGE_BUCKET:}
+    region: ${STORAGE_REGION:}
+    endpoint: ${STORAGE_ENDPOINT:}
+    path-style-access: ${STORAGE_PATH_STYLE:false}
+    # 上限来自设计稿：单文件 25 MiB、整次提交 100 MiB、40 页、单页 4000 万像素。
+    max-file-bytes: 26214400
+    max-submission-bytes: 104857600
+    max-pages: 40
+    max-pixels-per-page: 40000000
+    render-dpi: 200
+    cleanup-enabled: ${STORAGE_CLEANUP_ENABLED:true}
+    cleanup-batch-size: 200
+    cleanup-interval-ms: 3600000
+    draft-retention-days: 7
+    deleted-grace-days: 30
+  ocr:
+    # 独立进程，默认关。关掉时任务走"服务不可用"的有限重试，等 OCR 服务起来后自动补上，
+    # 不会因为服务还没启动就把一整批作业判成失败。
+    enabled: ${OCR_ENABLED:false}
+    base-url: ${OCR_BASE_URL:http://localhost:8090}
+    analyze-path: ${OCR_ANALYZE_PATH:/v1/documents/analyze}
+    token: ${OCR_TOKEN:}
+    # 一次要识别几十页，超时给得比模型调用宽松得多。
+    timeout-seconds: ${OCR_TIMEOUT_SECONDS:120}
+    max-attempts: 4
+    max-request-bytes: 26214400
+    processing-version: ${OCR_PROCESSING_VERSION:1}
+    model-version: ${OCR_MODEL_VERSION:3.7.0}

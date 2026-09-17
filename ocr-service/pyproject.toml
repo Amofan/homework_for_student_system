@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "homework-analysis-ocr"
+version = "0.1.0"
+description = "Internal OCR service for exam papers and student submissions"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.141.1",
+    # ASGI 服务器。镜像与非 root 运行都直接依赖它，所以放在主依赖里而不是 extras。
+    "uvicorn[standard]>=0.34",
+    "pydantic==2.13.5",
+    # 只做解码与像素尺寸读取，不引入任何识别模型。
+    "pillow>=11",
+    "numpy>=2",
+]
+
+[project.optional-dependencies]
+# Paddle 运行时的选择刻意放在 extras 里：CPU 版与 GPU 版是两套互斥的 wheel，
+# 写进主依赖会让两个镜像只能装同一套，而实际部署里它们本来就是不同的镜像。
+cpu = ["paddleocr==3.7.0", "paddlepaddle>=3.0"]
+gpu = ["paddleocr==3.7.0", "paddlepaddle-gpu>=3.0"]
+
+[tool.setuptools]
+# 只把 app 装进镜像：tests 与 pyproject 不需要出现在运行环境里，
+# 显式声明也避免 setuptools 自动发现时把 tests 当成第二个顶层包而报错。
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 让 `python -m pytest ocr-service/tests` 从仓库根目录跑时也能 import app.*，
+# 不依赖开发者在哪个目录按下回车。
+pythonpath = ["."]

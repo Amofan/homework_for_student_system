@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DocumentUploadQueue: typeof import('./components/document/DocumentUploadQueue.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
@@ -18,7 +19,12 @@ declare module 'vue' {
     ElInputNumber: typeof import('element-plus/es')['ElInputNumber']
     ElOption: typeof import('element-plus/es')['ElOption']
     ElSelect: typeof import('element-plus/es')['ElSelect']
+    PageThumbnailStrip: typeof import('./components/document/PageThumbnailStrip.vue')['default']
+    PrivateImage: typeof import('./components/document/PrivateImage.vue')['default']
+    RegionOverlay: typeof import('./components/document/RegionOverlay.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    StudentPageOrganizer: typeof import('./components/document/StudentPageOrganizer.vue')['default']
+    UploadProgressItem: typeof import('./components/document/UploadProgressItem.vue')['default']
   }
 }

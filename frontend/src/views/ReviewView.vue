@@ -4,8 +4,9 @@ import { ElMessage } from 'element-plus'
 
 import { api, errorMessage, type ApiResponse } from '../api/client'
 import { ERROR_TYPE_OPTIONS, errorTypeLabel, type ErrorType } from '../api/errorTypes'
-import type { Assignment, ReviewQueueItem } from '../api/types'
+import type { AnswerAsset, Assignment, ReviewQueueItem } from '../api/types'
 import MathText from '../math/MathText.vue'
+import PrivateImage from '../components/document/PrivateImage.vue'
 
 const assignments = ref<Assignment[]>([])
 const assignmentId = ref<number>()
@@ -29,6 +30,16 @@ async function loadQueue() {
   catch (reason) { ElMessage.error(errorMessage(reason)) } finally { loading.value = false }
 }
 function select(item?: ReviewQueueItem) { selected.value = item; startedAt.value = item ? performance.now() : undefined; if (item) Object.assign(form, { decision: 'ACCEPT', finalScore: item.suggestedScore, errorType: item.errorType, feedback: item.studentFeedback ?? '', reason: '' }) }
+/**
+ * 这一张答案图来自哪里。
+ *
+ * <p>页码会随模板重新配准丢失（区域被替换），但图本身仍在。缺了就说缺了：
+ * 编一个"第 1 页"会让教师以为图是从那一页裁出来的，而它可能根本不在那一页。
+ */
+function assetLabel(asset: AnswerAsset, index: number): string {
+  const position = `第 ${index + 1} 张`
+  return asset.pageNo ? `${position} · 第 ${asset.pageNo} 页` : `${position} · 来源页未知`
+}
 /** 复核耗时（秒，三位小数）。取不到计时就上交缺失，不交 0——0 秒会被统计成“瞬间批完”。 */
 function elapsedSeconds(): number | undefined {
   if (startedAt.value === undefined) return undefined
@@ -53,7 +64,17 @@ onMounted(async () => { try { const response = await api.get<ApiResponse<Assignm
       <article v-if="selected" class="paper-card review-sheet">
         <div class="review-progress">第 {{ currentIndex }} / {{ queue.length }} 条 <span :class="['source-badge', selected.source.toLowerCase()]">{{ selected.source === 'AI' ? 'AI 建议' : '规则评分' }}</span></div>
         <div class="answer-section"><span>题目 {{ selected.questionCode }}</span><p class="formula-text"><MathText :text="selected.questionContent" /></p></div>
-        <div class="student-answer"><span>学生作答</span><p><MathText :text="selected.answerContent || '（未作答）'" /></p></div>
+        <div class="student-answer">
+          <span>学生作答</span>
+          <div v-if="selected.answerAssets.length > 0" class="answer-assets">
+            <figure v-for="(asset, index) in selected.answerAssets" :key="`${asset.fileId}-${asset.sortOrder}`" class="answer-asset">
+              <PrivateImage :file-id="asset.fileId" :alt="`第 ${selected.questionCode} 题的答案图第 ${index + 1} 张`" eager />
+              <figcaption>{{ assetLabel(asset, index) }}</figcaption>
+            </figure>
+          </div>
+          <p v-else class="answer-image-missing">这道题没有答案图，只能按识别出的文字判断（整卷导入的老数据没有答案图）。</p>
+          <p><MathText :text="selected.answerContent || '（未作答）'" /></p>
+        </div>
         <div class="suggestion-block"><div><span>建议得分</span><strong>{{ selected.suggestedScore }}<small>/ {{ selected.totalScore }}</small></strong></div><div><span>建议错因</span><b>{{ errorTypeLabel(selected.errorType) }}</b><p><MathText :text="selected.teacherExplanation ?? ''" /></p></div></div>
         <div class="review-form"><div class="decision-tabs"><button v-for="choice in [['ACCEPT','采纳'],['MODIFY','修改'],['REJECT','驳回并人工评分']]" :key="choice[0]" :class="{ active: form.decision === choice[0] }" @click="form.decision = choice[0]">{{ choice[1] }}</button></div><div class="form-grid"><label>最终得分<el-input-number v-model="form.finalScore" :min="0" :max="selected.totalScore" /></label><label>最终错因<el-select v-model="form.errorType" placeholder="选择最终错因" class="error-type-select"><el-option v-for="option in ERROR_TYPE_OPTIONS" :key="option.value" :label="option.label" :value="option.value" /></el-select></label></div><label>给学生的反馈<el-input v-model="form.feedback" type="textarea" :rows="2" /></label><label v-if="form.decision !== 'ACCEPT'">修改原因<el-input v-model="form.reason" placeholder="修改或驳回时必填" /></label><button class="primary-button confirm-review" :disabled="submitBlocked" @click="confirm">确认本条复核</button></div>
       </article>

@@ -18,7 +18,10 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(username.value.trim(), password.value)
-    await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
+    // 回跳地址原样交给路由守卫再判一次角色：教师误带学生路径时会被守卫改回自己的工作台，
+    // 这里不需要复制一份角色判断。'/login' 自我回跳会造成无意义的一次跳转，直接忽略。
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+    await router.replace(redirect && redirect !== '/login' ? redirect : auth.homePath)
   } catch (reason) {
     error.value = errorMessage(reason)
   } finally {

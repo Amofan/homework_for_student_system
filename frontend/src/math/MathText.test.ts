@@ -26,4 +26,22 @@ describe('MathText', () => {
     expect(wrapper.text()).toContain('y=2')
     expect(wrapper.text()).not.toContain('x=1')
   })
+
+  /**
+   * 题干文本本身永远不产生图片。
+   *
+   * <p>题图是有意设计的资产，只能从 `question.assets` 来（并且只能带鉴权读取）。
+   * 如果这里会把文本里的 Markdown 图片语法或 `<img>` 渲染成图片，题干就成了注入图片的入口——
+   * 而题干的内容来自 OCR 与学生输入，不能当作可信来源。
+   */
+  it('never turns text into images', () => {
+    const wrapper = mount(MathText, {
+      props: { text: '见图 ![](https://evil.example/x.png) <img src=x onerror=alert(1)>' },
+    })
+
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.findAll('figure')).toHaveLength(0)
+    // 原样以文本呈现，而不是被当成图片语法解析掉。
+    expect(wrapper.text()).toContain('![](https://evil.example/x.png)')
+  })
 })

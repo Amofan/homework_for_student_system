@@ -19,6 +19,39 @@ services:
     volumes:
       - homework_mysql_data:/var/lib/mysql
 
+  # 内部 OCR 服务。只在内部网络暴露：不给它挂任何卷，也不让它接触业务数据库，
+  # 它唯一的能力是"收页面图、回候选区域"。
+  #
+  # 构建上下文用 ocr-service 目录，Dockerfile 里的 extras 决定装 CPU 还是 GPU 运行时：
+  # 两个镜像的依赖互相冲突，不能合成一个。
+  ocr-service:
+    build:
+      context: ./ocr-service
+      args:
+        PADDLE_EXTRA: ${OCR_PADDLE_EXTRA:-cpu}
+    container_name: homework-analysis-ocr
+    restart: unless-stopped
+    environment:
+      # 必填且没有默认值：没配令牌时服务会拒绝所有识别请求（失败关闭），
+      # 而不是"当作没要求令牌"把学生答卷暴露给任何能访问内网的人。
+      OCR_INTERNAL_TOKEN: ${OCR_INTERNAL_TOKEN:?请先设置 OCR_INTERNAL_TOKEN}
+      OCR_ENGINE: paddle
+      OCR_MODEL_VERSION: ${OCR_MODEL_VERSION:-3.7.0}
+      TZ: UTC
+    expose:
+      - "8090"
+    ports:
+      # 只绑本地回环：后端的 OCR_BASE_URL 走 http://localhost:8090，
+      # 而容器端口不该出现在局域网里。
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8090/health')"]
+      interval: 15s
+      timeout: 5s
+      # 首次启动要加载 Paddle 权重，给足起步时间，避免被反复重启。
+      start_period: 120s
+      retries: 5
+
 volumes:
   homework_mysql_data:
     name: homework_mysql_data

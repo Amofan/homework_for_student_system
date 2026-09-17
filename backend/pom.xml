@@ -21,6 +21,13 @@
         <java.version>21</java.version>
         <poi.version>5.4.1</poi.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <!-- PDF 渲染：只用来把上传的整卷 PDF 拆成页面 PNG。 -->
+        <pdfbox.version>3.0.8</pdfbox.version>
+        <!--
+          正式环境的私有对象存储。Spring Boot 的依赖管理不覆盖 AWS SDK v2，
+          所以这里必须写死版本，否则会被解析成任何碰巧落在仓库里的快照。
+        -->
+        <awssdk.version>2.54.17</awssdk.version>
         <!--
           固定 H2 到 Flyway 已验证的上限（2.3.232）。用 Spring Boot 默认的 2.4.x 时，
           每次启动都会打印"newer than the version Flyway has been verified with"，
@@ -75,6 +82,16 @@
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>${poi.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${awssdk.version}</version>
         </dependency>
 
         <dependency>

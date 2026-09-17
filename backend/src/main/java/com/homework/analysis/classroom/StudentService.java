@@ -50,6 +50,8 @@ public class StudentService {
         if (repository.softDeleteOwned(teacherId, studentId) == 0) {
             throw notFound();
         }
+        // 名册删除必须同步停用登录能力，否则被移出班级的学生还能继续登入并看到作业。
+        repository.disableAccountOwned(teacherId, studentId);
     }
 
     private static DomainException notFound() {

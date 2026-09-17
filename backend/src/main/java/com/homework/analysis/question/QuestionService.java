@@ -1,5 +1,7 @@
 package com.homework.analysis.question;
 
+import com.homework.analysis.paper.QuestionAssetRole;
+import com.homework.analysis.paper.QuestionAssetView;
 import com.homework.analysis.shared.error.DomainException;
 import com.homework.analysis.shared.jdbc.GeneratedKeys;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -148,7 +150,27 @@ public class QuestionService {
             rs.getString("standard_answer"), rs.getInt("total_score"),
             QuestionDifficulty.valueOf(rs.getString("difficulty")),
             rs.getLong("primary_knowledge_point_id"), secondary,
-            readAnswers(rs.getString("accepted_answers")), rubrics);
+            readAnswers(rs.getString("accepted_answers")), rubrics, assets(questionId));
+    }
+
+    /**
+     * 题目配图。
+     *
+     * <p>按 {@code (role, sort_order)} 排序而不是只按 {@code sort_order}：顺序在同一种角色内才有意义，
+     * 混在一起排会让一道题的两张图（题图与来源裁剪）在界面上交替出现。
+     *
+     * <p>角色列用 {@link QuestionAssetRole#parse} 解析：库里出现一个无法识别的角色属于数据损坏，
+     * 应该在读取时立刻暴露，而不是悄悄退回某个默认角色把图渲染到错误的位置。
+     */
+    private List<QuestionAssetView> assets(long questionId) {
+        return jdbc.sql("""
+                select id, file_id, role, sort_order from question_asset
+                where question_id = :questionId order by role, sort_order
+                """)
+            .param("questionId", questionId)
+            .query((assetRs, rowNum) -> new QuestionAssetView(assetRs.getLong("id"), assetRs.getLong("file_id"),
+                QuestionAssetRole.parse(assetRs.getString("role")), assetRs.getInt("sort_order")))
+            .list();
     }
 
     private String writeAnswers(List<String> answers) {

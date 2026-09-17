@@ -1,6 +1,6 @@
 import axios, { type AxiosError } from 'axios'
 
-import type { ExerciseSet } from './types'
+import type { Assignment, ExerciseSet, ProvisionedStudentAccount, StudentAssignment } from './types'
 
 export interface ApiError {
   code: string
@@ -61,9 +61,101 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '操作未完成，请稍后重试。'
 }
 
+/**
+ * 取出服务端的业务错误码。
+ *
+ * <p>有些错误码需要触发**不同的处理动作**，而不只是换一句提示文案：例如
+ * `OCR_REVIEW_CONFLICT` 意味着本地那份数据已经过期，除了提示之外还必须重新拉一遍，
+ * 否则教师接着点第二次还是会撞同一个冲突。只靠 `errorMessage` 的文本判断是脆的——
+ * 文案随时会被改，而错误码是接口契约。
+ */
+export function errorCode(error: unknown): string | undefined {
+  if (axios.isAxiosError<ApiResponse<never>>(error)) {
+    return error.response?.data?.error?.code
+  }
+  return undefined
+}
+
 export async function listExercises(classId: number): Promise<ExerciseSet[]> {
   const response = await api.get<ApiResponse<ExerciseSet[]>>('/exercises', { params: { classId } })
   return response.data.data
+}
+
+/**
+ * 发布作业。
+ *
+ * <p>`version` 必须来自当前页面上读到的那一份作业：服务端用它做乐观锁，
+ * 版本对不上会返回 `ASSIGNMENT_VERSION_CONFLICT`，提示教师刷新后重试，
+ * 而不是让后一次发布覆盖前一次设定的截止时间。
+ */
+export async function publishAssignment(
+  assignmentId: number, version: number, dueAt?: string,
+): Promise<Assignment> {
+  const response = await api.post<ApiResponse<Assignment>>(
+    `/teacher/assignments/${assignmentId}/publish`, { version, dueAt: dueAt ?? null })
+  return response.data.data
+}
+
+/** 学生自己的作业列表。响应里没有答案、评分项和同学的信息，只用于展示。 */
+export async function listMyAssignments(): Promise<StudentAssignment[]> {
+  const response = await api.get<ApiResponse<StudentAssignment[]>>('/student/assignments')
+  return response.data.data
+}
+
+/**
+ * 学生看一份作业。
+ *
+ * <p>答卷页只拿到作业 id（版本、提交记录都按作业维度组织），标题与截止时间得单独取一次。
+ * 不从列表页用路由参数捎过来：学生从聊天软件里点开一条分享链接时没有那个列表，
+ * 页面会显示成没有标题的半成品。
+ */
+export async function getMyAssignment(assignmentId: number): Promise<StudentAssignment> {
+  const response = await api.get<ApiResponse<StudentAssignment>>(`/student/assignments/${assignmentId}`)
+  return response.data.data
+}
+
+/**
+ * 为班级中的学生开通账号。
+ *
+ * <p>返回的明文临时密码只存在于这一次响应里，调用方必须当场展示或导出；
+ * 页面刷新或再次调用同一接口都拿不回来，服务端也不会补发。
+ */
+export async function provisionStudentAccounts(
+  classId: number, studentIds: number[],
+): Promise<ProvisionedStudentAccount[]> {
+  const response = await api.post<ApiResponse<ProvisionedStudentAccount[]>>(
+    `/teacher/classes/${classId}/student-accounts/provision`, { studentIds })
+  return response.data.data
+}
+
+export async function resetStudentPassword(studentId: number): Promise<ProvisionedStudentAccount> {
+  const response = await api.post<ApiResponse<ProvisionedStudentAccount>>(
+    `/teacher/students/${studentId}/password/reset`)
+  return response.data.data
+}
+
+/**
+ * 把页面上还留着的明文凭据导出成 Excel。
+ *
+ * <p>服务端已经拿不到这些明文了（库里只有哈希），所以文件必须由持有明文的页面把数据送回去渲染。
+ * 只提交含密码的行：让服务端再过滤一遍，避免以后有人改了页面就多出几行空白密码。
+ */
+export async function downloadStudentCredentials(
+  classId: number, accounts: ProvisionedStudentAccount[],
+): Promise<void> {
+  const students = accounts
+    .filter(account => Boolean(account.temporaryPassword))
+    .map(account => ({
+      studentNo: account.studentNo,
+      name: account.name,
+      username: account.username,
+      temporaryPassword: account.temporaryPassword,
+    }))
+  const response = await api.post<Blob>('/teacher/student-accounts/credentials',
+    { classId, students }, { responseType: 'blob' })
+  saveBlob(response.data, dispositionFilename(
+    response.headers['content-disposition'], `student-credentials-${classId}.xlsx`,
+  ))
 }
 
 export async function generateExercise(

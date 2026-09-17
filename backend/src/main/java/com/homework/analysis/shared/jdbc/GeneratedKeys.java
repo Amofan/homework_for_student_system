@@ -61,4 +61,20 @@ public final class GeneratedKeys {
         }
         return key.longValue();
     }
+
+    /**
+     * 条件插入版：允许“这次没有插入任何行”。
+     *
+     * <p>用于 {@code insert ... select ... where not exists (...)} 这种带前置条件的插入。
+     * 零行插入不是异常，而是预期结果——例如候选登录名已被占用，调用方应当换一个候选值重试。
+     * 返回 {@code null} 表示本次没有插入。
+     */
+    public static Long insertOrNull(JdbcClient jdbc, String sql, Consumer<JdbcClient.StatementSpec> binder) {
+        KeyHolder keys = new GeneratedKeyHolder();
+        JdbcClient.StatementSpec statement = jdbc.sql(sql);
+        binder.accept(statement);
+        statement.update(keys, ID_COLUMN);
+        Number key = keys.getKey();
+        return key == null ? null : key.longValue();
+    }
 }
